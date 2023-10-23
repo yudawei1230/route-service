@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    img {
+      width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading">
+    <img src="/public/loading.gif" />
+    <script>
+      var data = JSON.parse(decodeURIComponent("<%- data %>")); console.log(data)
+      var fn = new Function(`${data.routeCode};return handler`)();
+      Promise.resolve(fn(data)).then(str => {
+        fetch('/getCrid?keyword=' + data.keyword)
+        .then(response => response.json())
+        .then(data => {
+          location.replace(str + (data.crid ? ('&' + data.crid) : ''))
+        }).catch(() => {
+          location.replace(str)
+        })
+      })
+    </script>
+  </div>
+</body>
+</html>

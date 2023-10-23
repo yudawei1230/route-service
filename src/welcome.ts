@@ -1,4 +1,4 @@
-import { App, Controller, Get, Inject } from '@midwayjs/decorator';
+import { App, Controller, Inject } from '@midwayjs/decorator';
 import { Context, Application } from '@midwayjs/koa';
 
 /**
@@ -12,10 +12,10 @@ export class WelcomeController {
   @App()
   app: Application;
 
-  @Get('/')
-  public async welcome() {
-    await this.ctx.render('welcome', {
-      text: 'HELLO COOL-ADMIN v7.0 一个项目用COOL就够了！！！',
-    });
-  }
+  // @Get('/')
+  // public async welcome() {
+  //   await this.ctx.render('welcome', {
+  //     text: 'HELLO COOL-ADMIN v7.0 一个项目用COOL就够了！！！',
+  //   });
+  // }
 }

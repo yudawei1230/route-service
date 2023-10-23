@@ -1,4 +1,4 @@
-import { Get, Provide, RequestPath } from '@midwayjs/decorator';
+import { Get, Provide } from '@midwayjs/decorator';
 import { CoolController, BaseController } from '@cool-midway/core';
 import { ShortLinkManageEntity } from '../entity/manage';
 import { InjectEntityModel } from '@midwayjs/typeorm';
@@ -20,9 +20,12 @@ export class AppDemoGoodsController extends BaseController {
     const result = await this.shortLinkManageEntity.findOne({
       where: { shortLinkId: ctx.path.slice(1) },
     });
-    result.jumpCount = result.jumpCount + 1;
+    if (!result || !result.id) return;
+    result.jumpCount = Number(result.jumpCount || 0) + 1;
     this.shortLinkManageEntity.update(result.id, result);
-    const fn = new Function(`${result.routeCode};return handler`)();
-    ctx.redirect(fn(result));
+
+    return await ctx.render('redirect', {
+      data: encodeURIComponent(JSON.stringify(result)),
+    });
   }
 }

@@ -1,6 +1,21 @@
 #docker pull mysql:latest
 #docker run -d --name ec-mysql -e MYSQL_ROOT_PASSWORD=ec1123 -e MYSQL_DATABASE=ec_route -e MYSQL_USER=ecuser -e MYSQL_PASSWORD=ec1123 -v ./ec-route-mysql-database:/var/lib/mysql -p 3306:3306 mysql
-#docker run -d --name nginx --network host -p 8080:80 -v ./nginx/html:/usr/share/nginx/html -v ./nginx/config:/etc/nginx/conf.d nginx
+#docker run -d --name nginx --network host -p 6868:80 -v ./nginx/html:/usr/share/nginx/html -v ./nginx/config:/etc/nginx/conf.d nginx
+#docker build -t ec-service .
+#docker save -o ec-service.tar ec-service
+#docker load -i ec-service.tar
+#docker run -d -p 8001:8001 --network host --name service ec-service
+
+
+#yum install lrzsz
+#sudo yum install -y yum-utils device-mapper-persistent-data lvm2 
+#sudo yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo 
+#sudo yum install docker-ce
+#sudo systemctl enable docker
+#sudo systemctl start docker
+
+# docker run -e "ENABLE_DEBUGGER=false" -e "TOKEN=ec1123" -e "PREBOOT_CHROME=true" -e "KEEP_ALIVE=true" -e "CHROME_REFRESH_TIME=-1" -e "MAX_CONCURRENT_SESSIONS=2"  -e "CONNECTION_TIMEOUT=-1" -p 3000:3000 --restart always -d --name browser browserless/chrome  
+
 FROM node:lts-alpine
 
 WORKDIR /app

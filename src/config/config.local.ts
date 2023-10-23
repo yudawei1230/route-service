@@ -16,7 +16,7 @@ export default {
         password: 'ec1123',
         database: 'ec_route',
         // 自动建表 注意：线上部署的时候不要使用，有可能导致数据丢失
-        synchronize: true,
+        synchronize: false,
         // 打印日志
         logging: false,
         // 字符集
