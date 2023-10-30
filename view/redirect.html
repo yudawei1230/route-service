@@ -19,17 +19,24 @@
   <div id="loading" class="loading">
     <img src="/public/loading.gif" />
     <script>
-      var data = JSON.parse(decodeURIComponent("<%- data %>")); console.log(data)
+      var data = <%- data %>; 
       var fn = new Function(`${data.routeCode};return handler`)();
-      Promise.resolve(fn(data)).then(str => {
-        fetch('/getCrid?keyword=' + data.keyword)
-        .then(response => response.json())
-        .then(data => {
-          location.replace(str + (data.crid ? ('&' + data.crid) : ''))
-        }).catch(() => {
+      
+      if(!data.keyword) {
+        Promise.resolve(fn(data)).then(str => {
           location.replace(str)
         })
-      })
+      } else {
+        fetch('/getCrid?keyword=' + data.keyword)
+          .then(response => response.json())
+          .then(async result => {
+            const str = await fn(Object.assign(data, result))
+            location.replace(str + (data.crid ? ('&' + data.crid) : ''))
+          }).catch(async () => {
+            const str = await fn(Object.assign(data))
+            location.replace(str)
+          })
+      }
     </script>
   </div>
 </body>

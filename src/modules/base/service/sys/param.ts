@@ -21,11 +21,8 @@ export class BaseSysParamService extends BaseService {
    * @param key
    */
   async dataByKey(key) {
-    let result: any = await this.cacheManager.get(`param:${key}`);
-    if (!result) {
-      result = await this.baseSysParamEntity.findOneBy({ keyName: key });
-      this.cacheManager.set(`param:${key}`, result);
-    }
+    // let result: any = await this.cacheManager.get(`param:${key}`);
+    const result = await this.baseSysParamEntity.findOneBy({ keyName: key });
     if (result) {
       if (result.dataType == 0) {
         try {
