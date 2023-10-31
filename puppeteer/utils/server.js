@@ -70,6 +70,12 @@ module.exports = function startServer(targetPage) {
       return updateAsinList({ req, res, urlParams, targetPage });
     }
 
+    if (path === '/updateRankTask' && method === 'GET') {
+      updateRankTask(targetPage, true);
+      res.statusCode = 200;
+      res.end('ok');
+    }
+
     res.statusCode = 404;
     res.end();
   });

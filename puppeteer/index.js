@@ -1,5 +1,5 @@
 // docker stop browser && docker rm -v browser && docker rmi pptr-image && docker build --tag=pptr-image . && docker run -td --name browser -p 8833:8833 -p 8822:8822  pptr-image && docker logs -f browser
-// docker run -td --name browser --network host  pptr-image && docker logs -f browser
+// docker stop browser && docker rm -v browser && docker rmi pptr-image && docker build --tag=pptr-image . && docker run -td --name browser --network host  pptr-image && docker logs -f browser
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const startServer = require('./utils/server');

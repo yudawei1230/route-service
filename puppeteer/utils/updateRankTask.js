@@ -1,14 +1,14 @@
 const http = require('http');
 const getInfo = require('./getInfo');
-
+const fs = require('fs');
 const asinList = [];
 
 exports.asinList = asinList;
 
 function loadAsin() {
   const options = {
-    hostname: 'www.etechx.top',
-    port: 80,
+    hostname: '127.0.0.1',
+    port: 8001,
     path: '/getLinks',
     method: 'GET',
   };
@@ -33,12 +33,13 @@ function loadAsin() {
 
   req.end();
 }
-
+let timeout;
 async function getRank({ targetPage, asin }) {
   const target = asinList.find(v => v.asin === asin);
   if (!target || !target.keyword) return;
   const keyword = target.keyword;
   const info = await getInfo(targetPage, target.keyword);
+
   if (!info || !info.crid || !info.sprefix) return;
 
   const result = await targetPage.evaluate(
@@ -46,7 +47,13 @@ async function getRank({ targetPage, asin }) {
       let link = null;
       let iframe = null;
       try {
+        [...document.querySelectorAll('iframe[data-info="1"]')].forEach(v =>
+          document.body.removeChild(v)
+        );
         for (let i = 0; i < 20; i++) {
+          if (iframe && ![...document.body.childNodes].includes(iframe)) {
+            return;
+          }
           if (link) {
             document.body.removeChild(iframe);
             return link;
@@ -64,6 +71,7 @@ async function getRank({ targetPage, asin }) {
             await new Promise(resolve => {
               iframe = document.createElement('iframe');
               iframe.src = url;
+              iframe.setAttribute('data-info', '1');
               iframe.style.display = 'none';
               iframe.onload = function () {
                 const htmlCode =
@@ -71,21 +79,28 @@ async function getRank({ targetPage, asin }) {
                 const match = htmlCode.match(
                   new RegExp(`(?<=href=").+?${info.asin}[^"]+`)
                 );
-                const rank = rank.match(
+                const rank = htmlCode.match(
                   new RegExp(
                     `(?<=data-asin="${info.asin}") data-index="(\\d+)"`
                   )
                 );
+                iframe[`text${i}`] = htmlCode;
                 if (match) {
                   link = {
                     url: new DOMParser()
                       .parseFromString(match[0], 'text/html')
                       .body.textContent.replace(/.*url=/, ''),
                     rank: rank ? `${i + 1}-${rank[1]}` : '',
+                    text: htmlCode,
+                    i,
                   };
                 }
                 resolve();
               };
+              setTimeout(() => {
+                resolve();
+              }, 10000);
+              console.log(iframe);
               document.body.appendChild(iframe);
             });
           } else {
@@ -108,17 +123,20 @@ async function getRank({ targetPage, asin }) {
                   const match = text.match(
                     new RegExp(`(?<=href=\\\\?").+?${info.asin}[^"]+`)
                   );
-                  const rank = rank.match(
+                  const rank = text.match(
                     new RegExp(
-                      `(?<=data-asin="${info.asin}") data-index="(\\d+)"`
+                      `(?<=data-asin=\\\\"${info.asin}\\\\") data-index=\\\\"(\\d+)\\\\"`
                     )
                   );
+                  iframe[`text${i}`] = text;
                   if (match) {
                     link = {
                       url: new DOMParser()
                         .parseFromString(match[0], 'text/html')
                         .body.textContent.replace(/.*url=/, ''),
                       rank: rank ? `${i + 1}-${rank[1]}` : '',
+                      text,
+                      i,
                     };
                   }
                 })
@@ -128,20 +146,27 @@ async function getRank({ targetPage, asin }) {
           await new Promise(resolve => setTimeout(resolve, 20000));
         }
       } catch (e) {}
-      document.body.removeChild(iframe);
-      // /s/query?crid=1BBCIE4GNIL5M&k=cars&page=2&qid=1698646328&ref=sr_pg_1&sprefix=cars%2Caps%2C364
+      iframe && document.body.removeChild(iframe);
 
       return link;
     },
     { ...info, keyword, asin }
   );
 
-  return (result || '')
-    .replace(/crid=\w+&?/, '')
-    .replace(/qid=\d+&?/, '')
-    .replace(/sprefix=[^&]+&?/, '')
-    .replace(/keywords=[^&]+&?/, '')
-    .replace(/\\$/, '');
+  if (result && result.url) {
+    result.url = result.url
+      .replace(/crid=\w+&?/, '')
+      .replace(/qid=\d+&?/, '')
+      .replace(/sprefix=[^&]+&?/, '')
+      .replace(/keywords=[^&]+&?/, '')
+      .replace(/\\$/, '');
+
+    if (!result.rank && result.text) {
+      fs.writeFileSync(`./${info.asin}.txt`, result.text);
+    }
+    delete result.text;
+  }
+  return result;
 }
 
 function updateAsinList({ req, res, targetPage }) {
@@ -167,18 +192,23 @@ function updateAsinList({ req, res, targetPage }) {
   });
 }
 
-async function goUpdateTank(targetPage) {
+async function goUpdateRank(targetPage, timeId) {
   for (const item of asinList) {
+    if (timeId !== timeout) return;
     const result = await getRank({ targetPage, asin: item.asin });
-    console.log(item, result);
+    if (result) {
+      console.log(item, result.url, result.rank, result.i);
+    } else {
+      console.log(item, result);
+    }
     if (result && result.url) {
       const url = /^https:\/\//.test(result.url)
         ? result.url
         : `https://www.amazon.com/${result.url}`;
       const rank = result.rank ? `&rank=${result.rank}` : '';
       const options = {
-        hostname: 'www.etechx.top',
-        port: 80,
+        hostname: '127.0.0.1',
+        port: 8001,
         path: `/updateRank?id=${item.id}&url=${encodeURIComponent(url)}${rank}`,
         method: 'GET',
       };
@@ -190,13 +220,18 @@ async function goUpdateTank(targetPage) {
 
 function updateRankTask(targetPage, immediate) {
   loadAsin();
-  setTimeout(
+  clearTimeout(timeout);
+  let currentTimeout;
+  console.log('updateRankTask', new Date().toLocaleString());
+  timeout = setTimeout(
     async () => {
-      await goUpdateTank(targetPage);
+      await goUpdateRank(targetPage, currentTimeout);
+      if (currentTimeout !== timeout) return;
       updateRankTask(targetPage);
     },
     immediate ? 60 * 1000 : 60 * 60 * 1000
   );
+  currentTimeout = timeout;
 }
 
 exports.updateRankTask = updateRankTask;

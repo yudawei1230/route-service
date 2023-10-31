@@ -3,7 +3,6 @@ import { CoolController, BaseController } from '@cool-midway/core';
 import { ShortLinkManageEntity } from '../entity/manage';
 import { InjectEntityModel } from '@midwayjs/typeorm';
 import { Repository } from 'typeorm';
-import { makeHttpRequest } from '@midwayjs/core';
 import { BaseSysParamService } from '../../base/service/sys/param';
 import { DictInfoEntity } from '../../dict/entity/info';
 /**
@@ -27,14 +26,20 @@ export class AppDemoGoodsController extends BaseController {
     const result = await this.shortLinkManageEntity.find();
 
     return this.ok(
-      (result || [])
-        .map(v => {
-          const match = v.redirectUrl.match(/\/([0-9A-Z]+)\//);
-          const asin = match && match[1];
-          if (!asin) return;
-          return { id: v.id, asin, keyword: v.keyword };
-        })
-        .filter(Boolean)
+      (
+        await Promise.all(
+          (result || []).map(async v => {
+            const match = v.redirectUrl.match(/\/([0-9A-Z]+)\//);
+            const asin = match && match[1];
+            if (!asin) return;
+            const dict = await this.dictInfoEntity.findOneBy({
+              id: Number(v.keyword),
+            });
+            if (!dict || !dict.value) return;
+            return { id: v.id, asin, keyword: dict.value };
+          })
+        )
+      ).filter(Boolean)
     );
   }
 
@@ -51,29 +56,6 @@ export class AppDemoGoodsController extends BaseController {
     }
     this.shortLinkManageEntity.update(result.id, result);
     return this.ok();
-  }
-
-  @Get('/updateLinks')
-  async updateLinks(ctx) {
-    const result = await this.shortLinkManageEntity.find();
-    const res = await makeHttpRequest('http://127.0.0.1:8833/updateAsinList', {
-      method: 'POST',
-      contentType: 'json',
-      timeout: 0,
-      data: {
-        list: (result || [])
-          .map(v => {
-            const match = v.redirectUrl.match(/\/([0-9A-Z]+)\//);
-            const asin = match && match[1];
-            if (!asin) return;
-            return { id: v.id, asin, keyword: v.keyword };
-          })
-          .filter(Boolean),
-      },
-      dataType: 'json', // 返回的数据格式
-    });
-
-    return this.ok(res.data);
   }
 
   /**
