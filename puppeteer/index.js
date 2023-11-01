@@ -3,6 +3,7 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const startServer = require('./utils/server');
+const { startLoop } = require('./utils/queue');
 let browserId = '';
 let targetPage;
 (async () => {
@@ -19,9 +20,18 @@ let targetPage;
   const browserWSEndpoint = browser.wsEndpoint();
   browserId = browserWSEndpoint.split('/').pop();
 
+  let reloadResult = true;
+  targetPage.intervalReload = () => {
+    if (reloadResult) return reloadResult;
+    reloadResult = targetPage.reload();
+    return reloadResult;
+  };
+
+  startLoop(targetPage);
   setInterval(async () => {
-    await targetPage.reload();
+    reloadResult = null;
   }, 1000 * 60 * 30);
+
   startServer(targetPage);
   fs.writeFileSync('./id.txt', browserId);
 })();

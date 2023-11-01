@@ -1,6 +1,9 @@
-module.exports = async function getInfo(targetPage, keyword) {
+const { getQueueHandler } = require('./queue');
+
+async function getInfo(targetPage, keyword) {
   // 获取当前页面的URL
   if (!targetPage) return;
+  await targetPage.intervalReload();
   const currentUrl = await targetPage.url();
 
   if (currentUrl.includes('?')) {
@@ -61,4 +64,6 @@ module.exports = async function getInfo(targetPage, keyword) {
   targetPage.removeListener('response', responseHandler);
 
   return crid;
-};
+}
+
+module.exports = getQueueHandler(getInfo);

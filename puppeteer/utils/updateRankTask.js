@@ -2,6 +2,7 @@ const http = require('http');
 const getInfo = require('./getInfo');
 const fs = require('fs');
 const asinList = [];
+const { getQueueHandler } = require('./queue');
 
 exports.asinList = asinList;
 
@@ -114,36 +115,71 @@ async function getRank({ targetPage, asin }) {
               }&qid=${(Date.now() / 1000).toFixed(
                 0
               )}&ref=sr_pg_${i}&sprefix=${encodeURIComponent(info.sprefix)}`;
-              await iframe.contentWindow
-                .fetch(url, {
-                  method: 'POST',
+
+              const matchLink = async body => {
+                if (link) return;
+                return await iframe.contentWindow
+                  .fetch(url, {
+                    method: 'POST',
+                    body,
+                  })
+                  .then(v => v.text())
+                  .then(text => {
+                    const match = text.match(
+                      new RegExp(`(?<=href=\\\\?").+?${info.asin}[^"]+`)
+                    );
+                    const rank = text.match(
+                      new RegExp(
+                        `(?<=data-asin=\\\\"${info.asin}\\\\") data-index=\\\\"(\\d+)\\\\"`
+                      )
+                    );
+                    iframe[`text${i}`] = text;
+                    if (match) {
+                      link = {
+                        url: new DOMParser()
+                          .parseFromString(match[0], 'text/html')
+                          .body.textContent.replace(/.*url=/, ''),
+                        rank: rank ? `${i + 1}-${rank[1]}` : '',
+                        text,
+                        i,
+                      };
+                    }
+                    return text;
+                  })
+                  .catch(() => {});
+              };
+
+              await matchLink(
+                JSON.stringify({
+                  'page-content-type': 'atf',
+                  'prefetch-type': 'rq',
+                  'customer-action': 'pagination',
                 })
-                .then(v => v.text())
-                .then(text => {
-                  const match = text.match(
-                    new RegExp(`(?<=href=\\\\?").+?${info.asin}[^"]+`)
-                  );
-                  const rank = text.match(
-                    new RegExp(
-                      `(?<=data-asin=\\\\"${info.asin}\\\\") data-index=\\\\"(\\d+)\\\\"`
-                    )
-                  );
-                  iframe[`text${i}`] = text;
-                  if (match) {
-                    link = {
-                      url: new DOMParser()
-                        .parseFromString(match[0], 'text/html')
-                        .body.textContent.replace(/.*url=/, ''),
-                      rank: rank ? `${i + 1}-${rank[1]}` : '',
-                      text,
-                      i,
-                    };
-                  }
-                })
-                .catch(() => {});
+              ).then(async text => {
+                iframe[`prefetchText${i}`] = text;
+                if (!text) return;
+                let ajaxData = text.match(
+                  /(?<=data-prefetch-ajax-data-passing)[\s\S]+?payload"[^"]+"([^"]+)/
+                );
+                if (!ajaxData || !ajaxData[1]) return;
+
+                await matchLink(
+                  JSON.stringify({
+                    'customer-action': 'pagination',
+                    'prefetch-type': 'log',
+                    'page-content-type': 'btf',
+                    'prefetch-ajax-data': ajaxData[1],
+                    wIndexMainSlot: 7,
+                  })
+                ).then(text => {
+                  iframe[`fetchAjaxDataText${i}`] = text;
+                });
+              });
+
+              await matchLink();
             }
           }
-          await new Promise(resolve => setTimeout(resolve, 20000));
+          await new Promise(resolve => setTimeout(resolve, 10000));
         }
       } catch (e) {}
       iframe && document.body.removeChild(iframe);
@@ -169,6 +205,8 @@ async function getRank({ targetPage, asin }) {
   return result;
 }
 
+const pushGetRankQueue = getQueueHandler(getRank);
+
 function updateAsinList({ req, res, targetPage }) {
   let body = '';
   req.on('data', chunk => {
@@ -180,7 +218,10 @@ function updateAsinList({ req, res, targetPage }) {
     const list = data.list;
     asinList.length = 0;
     asinList.push(...list);
-    const result = await getRank({ targetPage, asin: asinList[1].asin });
+    const result = await pushGetRankQueue({
+      targetPage,
+      asin: asinList[1].asin,
+    });
 
     res.statusCode = 200;
     res.end(
@@ -195,7 +236,7 @@ function updateAsinList({ req, res, targetPage }) {
 async function goUpdateRank(targetPage, timeId) {
   for (const item of asinList) {
     if (timeId !== timeout) return;
-    const result = await getRank({ targetPage, asin: item.asin });
+    const result = await pushGetRankQueue({ targetPage, asin: item.asin });
     if (result) {
       console.log(item, result.url, result.rank, result.i);
     } else {
