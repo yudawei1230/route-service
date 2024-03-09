@@ -11,7 +11,7 @@
 #sudo yum install -y yum-utils device-mapper-persistent-data lvm2 
 #sudo yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo 
 #sudo yum install docker-ce
-#sudo systemctl enable docker
+#sudo systemctl enable docker && systemctl start docker
 #sudo systemctl start docker
 
 # docker run -e "ENABLE_DEBUGGER=false" -e "TOKEN=ec1123" -e "PREBOOT_CHROME=true" -e "KEEP_ALIVE=true" -e "CHROME_REFRESH_TIME=-1" -e "MAX_CONCURRENT_SESSIONS=2"  -e "CONNECTION_TIMEOUT=-1" -p 3000:3000 --restart always -d --name browser browserless/chrome  

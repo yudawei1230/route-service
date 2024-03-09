@@ -36,7 +36,7 @@ export class AppDemoGoodsController extends BaseController {
               id: Number(v.keyword),
             });
             if (!dict || !dict.value) return;
-            return { id: v.id, asin, keyword: dict.value };
+            return { id: v.id, asin, keyword: dict.value, rank: v.rank };
           })
         )
       ).filter(Boolean)
@@ -69,7 +69,7 @@ export class AppDemoGoodsController extends BaseController {
     if (!result || !result.id) return;
 
     result.jumpCount = Number(result.jumpCount || 0) + 1;
-    this.shortLinkManageEntity.update(result.id, result);
+    await this.shortLinkManageEntity.update(result.id, result);
     const dict = await this.dictInfoEntity.findOneBy({
       id: Number(result.keyword),
     });
@@ -77,9 +77,17 @@ export class AppDemoGoodsController extends BaseController {
       result.routeCode ||
       (await this.baseSysParamService.dataByKey('routeCode'));
 
+    const redirectUrl = result.redirectUrl
+      .replace(/crid=\w+&?/, '')
+      .replace(/qid=\d+&?/, '')
+      .replace(/sprefix=[^&]+&?/, '')
+      .replace(/keywords=[^&]+&?/, '')
+      .replace(/\\$/, '');
+
     return await ctx.render('redirect', {
       data: JSON.stringify({
         ...result,
+        redirectUrl,
         keyword: dict ? dict.value : undefined,
       }),
     });
