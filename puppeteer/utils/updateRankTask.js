@@ -22,7 +22,7 @@ function loadAsin() {
     });
 
     res.on('end', () => {
-      const list = JSON.parse(resStr).data;
+      const list = JSON.parse(resStr).data || [];
       asinList.length = 0;
       asinList.push(...list);
     });

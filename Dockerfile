@@ -12,8 +12,7 @@
 #sudo yum-config-manager --add-repo https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo 
 #sudo yum install docker-ce
 #sudo systemctl enable docker && systemctl start docker
-#sudo systemctl start docker
-
+#tar -zcvf ./server.tar.gz src .dockerignore .editorconfig .eslintrc.json .hintrc .prettierrc.js bootstrap.js docker-compose.yml Dockerfile jest.config.js package.json package-lock.json
 # docker run -e "ENABLE_DEBUGGER=false" -e "TOKEN=ec1123" -e "PREBOOT_CHROME=true" -e "KEEP_ALIVE=true" -e "CHROME_REFRESH_TIME=-1" -e "MAX_CONCURRENT_SESSIONS=2"  -e "CONNECTION_TIMEOUT=-1" -p 3000:3000 --restart always -d --name browser browserless/chrome  
 
 FROM node:lts-alpine
@@ -30,7 +29,7 @@ RUN apk add --no-cache tzdata
 ENV TZ="Asia/Shanghai"
 
 # 如果各公司有自己的私有源，可以替换registry地址,如使用官方源注释下一行
-RUN npm config set registry https://registry.npm.taobao.org
+#RUN npm config set registry https://registry.npm.taobao.org
 
 # 安装开发期依赖
 COPY package.json ./package.json

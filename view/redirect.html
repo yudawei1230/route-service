@@ -2,6 +2,9 @@
 <html>
 <head>
   <style>
+    body {
+      overflow: hidden;
+    }
     .loading {
       display: flex;
       justify-content: center;
@@ -11,7 +14,7 @@
       font-weight: bold;
     }
     img {
-      width: 300px;
+      width: 150px;
     }
   </style>
 </head>
@@ -31,9 +34,6 @@
           .then(response => response.json())
           .then(async result => {
             const str = await fn(Object.assign(data, result))
-            location.replace(str + (data.crid ? ('&' + data.crid) : ''))
-          }).catch(async () => {
-            const str = await fn(Object.assign(data))
             location.replace(str)
           })
       }
