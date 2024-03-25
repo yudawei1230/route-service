@@ -19,7 +19,6 @@ function getQueueHandler(fn) {
       await page.intervalReload();
       const result = await Promise.resolve(fn(...params)).catch(() => null);
       reqList.delete(cb);
-      console.log(reqList.size);
       resolve(result);
       Promise.resolve().then(() => {
         if (reqList.size > 0) {

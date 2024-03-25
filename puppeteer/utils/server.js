@@ -46,7 +46,6 @@ module.exports = function startServer(targetPage) {
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const path = req.url.split('?')[0];
     const method = req.method;
-    console.log(path);
     if (path === '/getCrid' && method === 'GET') {
       return getCrid({ req, res, urlParams, targetPage });
     }

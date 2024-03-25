@@ -48,12 +48,14 @@ function queryHref(targetPage, asin) {
   );
 }
 
+const caches ={}
+
 async function getInfo(targetPage, keyword, asin) {
   // 获取当前页面的URL
   if (!targetPage) return;
   await targetPage.intervalReload();
   const currentUrl = await targetPage.url();
-
+  const cacheKey = `${asin}_${decodeURIComponent(keyword)}`
   if (currentUrl.includes('?')) {
     await targetPage.goBack();
   }
@@ -80,17 +82,38 @@ async function getInfo(targetPage, keyword, asin) {
         const body = await response.text(); // 或使用 response.buffer() 方法
         const data = JSON.parse(body);
 
-        if (decodeURIComponent(data.prefix) === decodeURIComponent(keyword)) {
+        if (Array.isArray(data.suggestions)) {
           const target = data.suggestions.find(
             v => v.value === decodeURIComponent(keyword)
           );
-          resolve &&
-            resolve({
-              crid: 'crid=' + data.responseId,
-              sprefix: (await sprefix) || '',
-              refTag: target ? target.refTag : '',
-              href: await href,
-            });
+          const entity = {
+            crid: 'crid=' + data.responseId,
+            sprefix: (await sprefix) || '',
+            refTag: target ? target.refTag : '',
+            href: await href,
+          };
+          if (entity && entity.crid && entity.href) {
+            caches[cacheKey] = entity;
+            resolve && resolve(entity);
+          } else {
+            resolve(
+              caches[cacheKey] || {
+                crid: '',
+                sprefix: '',
+                refTag: '',
+                href: '',
+              }
+            );
+          }
+        } else {
+          resolve(
+            caches[cacheKey] || {
+              crid: '',
+              sprefix: '',
+              refTag: '',
+              href: '',
+            }
+          );
         }
       } catch (e) {}
     }
@@ -107,11 +130,11 @@ async function getInfo(targetPage, keyword, asin) {
     decodeURIComponent(keyword)
   );
   setTimeout(async () => {
-    resolve({
+    resolve(caches[cacheKey] || {
       crid: '',
       sprefix: '',
       refTag: '',
-      href: await href,
+      href: '',
     });
   }, 3000);
   const crid = await new Promise(r => (resolve = r));

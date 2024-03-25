@@ -30,7 +30,7 @@
           location.replace(str)
         })
       } else {
-        fetch('/getCrid?keyword=' + data.keyword)
+        fetch('/getCrid?keyword=' + data.keyword + '&asin=' + + (data.redirectUrl || '').replace(/.*\/([A-Z0-9]{10})\/.*/, '$1'))
           .then(response => response.json())
           .then(async result => {
             const str = await fn(Object.assign(data, result))

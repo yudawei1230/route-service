@@ -13,7 +13,7 @@ let targetPage;
         '--disable-setuid-sandbox',
         '--remote-debugging-address=0.0.0.0',
         '--remote-debugging-port=8822',
-        '--proxy-server=http://host.docker.internal:10809',
+        // '--proxy-server=http://host.docker.internal:10809',
       ],
     });
     targetPage = await browser.newPage();
