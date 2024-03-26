@@ -5,6 +5,7 @@ const startServer = require('./utils/server');
 const { startLoop } = require('./utils/queue');
 let browserId = '';
 let targetPage;
+let backupPage;
 (async () => {
   try {
     const browser = await puppeteer.launch({
@@ -17,7 +18,10 @@ let targetPage;
       ],
     });
     targetPage = await browser.newPage();
+    backupPage = await browser.newPage();
     await targetPage.goto('https://www.amazon.com/');
+    await backupPage.goto('https://www.amazon.com/');
+
     const browserWSEndpoint = browser.wsEndpoint();
     browserId = browserWSEndpoint.split('/').pop();
 
@@ -25,6 +29,7 @@ let targetPage;
     targetPage.intervalReload = () => {
       if (reloadResult) return reloadResult;
       reloadResult = targetPage.reload();
+      backupPage.reload()
       return reloadResult;
     };
 
@@ -33,7 +38,7 @@ let targetPage;
       reloadResult = null;
     }, 1000 * 60 * 30);
 
-    startServer(targetPage);
+    startServer(targetPage, backupPage);
   } catch (e) {
     console.log(e)
   }

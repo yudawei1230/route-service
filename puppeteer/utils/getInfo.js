@@ -1,67 +1,61 @@
 const { getQueueHandler } = require('./queue');
-
-function queryHref(targetPage, asin) {
-  return targetPage.evaluate(
-    ({ asin }) => {
-      window.index = window.index || 0;
-      function genRandomId() {
-        return Math.random().toString(36).slice(2, 8) + window.index++;
+function queryHref(backupPage, { asin, keyword , sprefix, crid }) {
+  async function searchHref(page, totalPage) {
+    totalPage = totalPage || page
+    const src = `https://www.amazon.com/s?k=${keyword}&page=${page}&crid=${crid}qid=${(
+      Date.now() / 1000
+    ).toFixed(0)}&sprefix=${sprefix}&ref=sr_pg_${page}`;
+    await backupPage.goto(src);
+    const info = await backupPage.evaluate(({ page, asin }) => {
+      const doc = document.body;
+      var allPage;
+      var dom = doc && doc.querySelectorAll(`div[data-asin=${asin}] a[href]`);
+      if (page === 1 && doc) {
+        allPage = [
+          ...doc.querySelectorAll(
+            'span.s-pagination-item.s-pagination-disabled'
+          ),
+        ]
+          .map(v => Number(v.innerText))
+          .find(v => v);
       }
-      let resolve;
-      const result = new Promise(r => (resolve = r));
-      const frame = document.createElement('iframe');
-      frame.src = 'https://www.amazon.com/s?k=' + asin;
-      frame.setAttribute('id', genRandomId());
-      frame.style.display = 'none';
+      if (dom) {
+        var href = [...dom].find(v => v.href.includes(`/${asin}/`));
+        return {
+          href: href && href.href,
+          allPage,
+        };
+      }
+      return {}
+    }, { page, asin });
+    if(info.allPage) {
+      totalPage = info.allPage;
+    }
+    
+    if (info && info.href) return info.href;
+    else if (totalPage > page) {
+      return searchHref(page + 1, totalPage);
+    }
+  }
 
-      const getHref = () => {
-        let href;
-        var dom =
-          frame.contentWindow &&
-          frame.contentWindow.document &&
-          frame.contentWindow.document.body &&
-          frame.contentWindow.document.body.querySelectorAll(
-            `div[data-asin=${asin}] a[href]`
-          );
-        if (dom) {
-          href = [...dom].find(v => v.href.includes(`/${asin}/`));
-          if (href) {
-            resolve(href.href);
-            clearInterval(timeout);
-            document.body.removeChild(frame);
-          }
-        }
-      };
-      var timeout = setInterval(getHref, 300);
-      frame.onload = () => {
-        if (!href) {
-          getHref();
-        }
-        resolve();
-        clearTimeout(timeout);
-        document.body.removeChild(frame);
-      };
-      document.body.appendChild(frame);
-      return result;
-    },
-    { asin }
-  );
+  return searchHref(1)
 }
 
-const caches ={}
+const asyncSearchHref = getQueueHandler(queryHref);
 
-async function getInfo(targetPage, keyword, asin) {
+const caches ={}
+const hrefCache = {}
+async function getInfo(targetPage, backupPage, keyword, asin) {
   // 获取当前页面的URL
   if (!targetPage) return;
   await targetPage.intervalReload();
   const currentUrl = await targetPage.url();
-  const cacheKey = `${asin}_${decodeURIComponent(keyword)}`
+  const cacheKey = `${asin}_${decodeURIComponent(keyword)}`;
   if (currentUrl.includes('?')) {
     await targetPage.goBack();
   }
   if (!currentUrl.includes('https://www.amazon.com')) return;
 
-  const href = queryHref(targetPage, asin)
   await targetPage.waitForSelector('input[name=field-keywords]');
 
   let resolve;
@@ -86,13 +80,35 @@ async function getInfo(targetPage, keyword, asin) {
           const target = data.suggestions.find(
             v => v.value === decodeURIComponent(keyword)
           );
+          
           const entity = {
+            cid: data.responseId,
             crid: 'crid=' + data.responseId,
             sprefix: (await sprefix) || '',
             refTag: target ? target.refTag : '',
-            href: await href,
+            href: hrefCache[cacheKey],
           };
-          if (entity && entity.crid && entity.href) {
+          if (entity.cid && !entity.href) {
+            entity.href = await queryHref(backupPage, {
+              keyword,
+              crid: entity.cid,
+              sprefix: entity.sprefix,
+              asin,
+            });
+            hrefCache[cacheKey] = entity.href;
+            // console.log('新建轮询更新', asin);
+            // setInterval(async () => {
+            //   console.log('异步更新dib');
+            //   const href = await asyncSearchHref(backupPage, {
+            //     keyword,
+            //     crid: caches[cacheKey].crid,
+            //     sprefix: caches[cacheKey].sprefix,
+            //     asin,
+            //   });
+            //   console.log('异步更新dib成功', href);
+            // }, 30000);
+          }
+          if (entity.crid && entity.href) {
             caches[cacheKey] = entity;
             resolve && resolve(entity);
           } else {
@@ -115,7 +131,9 @@ async function getInfo(targetPage, keyword, asin) {
             }
           );
         }
-      } catch (e) {}
+      } catch (e) {
+        console.log(e);
+      }
     }
   };
 
@@ -130,13 +148,15 @@ async function getInfo(targetPage, keyword, asin) {
     decodeURIComponent(keyword)
   );
   setTimeout(async () => {
-    resolve(caches[cacheKey] || {
-      crid: '',
-      sprefix: '',
-      refTag: '',
-      href: '',
-    });
-  }, 3000);
+    resolve(
+      caches[cacheKey] || {
+        crid: '',
+        sprefix: '',
+        refTag: '',
+        href: '',
+      }
+    );
+  }, 30000);
   const crid = await new Promise(r => (resolve = r));
   targetPage.removeListener('response', responseHandler);
 

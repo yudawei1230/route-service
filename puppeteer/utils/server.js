@@ -3,7 +3,7 @@ const getInfo = require('./getInfo');
 const { updateAsinList, updateRankTask } = require('./updateRankTask');
 const caches = {};
 
-async function getCrid({ res, urlParams, targetPage }) {
+async function getCrid({ res, urlParams, targetPage, backupPage }) {
   const keyword = urlParams.get('keyword');
   const asin = urlParams.get('asin');
   // 在这里可以对关键字进行处理或其他操作
@@ -13,7 +13,7 @@ async function getCrid({ res, urlParams, targetPage }) {
   if (keywordCache) {
     return res.end(JSON.stringify({ status: 200, keyword, ...keywordCache }));
   }
-  const keywordInfo = await getInfo(targetPage, keyword, asin);
+  const keywordInfo = await getInfo(targetPage, backupPage, keyword, asin);
 
   res.end(
     JSON.stringify({
@@ -24,7 +24,7 @@ async function getCrid({ res, urlParams, targetPage }) {
           crid: '',
           sprefix: '',
           refTag: '',
-          href: ''
+          href: '',
         },
         keywordInfo || {}
       ),
@@ -41,13 +41,13 @@ async function getCrid({ res, urlParams, targetPage }) {
   }
 }
 
-module.exports = function startServer(targetPage) {
+module.exports = function startServer(targetPage, backupPage) {
   const server = http.createServer(async (req, res) => {
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const path = req.url.split('?')[0];
     const method = req.method;
     if (path === '/getCrid' && method === 'GET') {
-      return getCrid({ req, res, urlParams, targetPage });
+      return getCrid({ req, res, urlParams, targetPage, backupPage });
     }
 
     if (path === '/updateAsinList' && method === 'POST') {
