@@ -1,5 +1,4 @@
-const reqList = new Set();
-
+const taskMap = {}
 let page;
 function startLoop(targetPage) {
   page = targetPage;
@@ -8,8 +7,9 @@ function startLoop(targetPage) {
   }, 5000);
 }
 
-function getQueueHandler(fn) {
-  if (!(fn instanceof Function)) return;
+function getQueueHandler(taskType, fn, options) {
+  if (!taskMap[taskType]) taskMap[taskType] = new Set()
+   if (!(fn instanceof Function)) return;
   return (...params) => {
     let resolve;
     let exec;
@@ -18,18 +18,24 @@ function getQueueHandler(fn) {
       exec = true;
       await page.intervalReload();
       const result = await Promise.resolve(fn(...params)).catch(() => null);
-      reqList.delete(cb);
+      taskMap[taskType].delete(cb);
       resolve(result);
       Promise.resolve().then(() => {
-        if (reqList.size > 0) {
-          const iterator = reqList.values();
+        if (taskMap[taskType].size > 0) {
+          const iterator = taskMap[taskType].values();
           const headCb = iterator.next().value;
           headCb();
         }
       });
     };
-    reqList.add(cb);
-    if (reqList.size === 1) cb();
+    if (options?.appendHead) {
+      taskMap[taskType] = new Set(
+        [cb].concat(Array.from(taskMap[taskType].values()))
+      );
+    } else {
+      taskMap[taskType].add(cb);
+    }
+    if (taskMap[taskType].size === 1) cb();
     return new Promise(r => {
       resolve = r;
     });

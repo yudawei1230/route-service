@@ -1,5 +1,5 @@
 const http = require('http');
-const getInfo = require('./getInfo');
+const { getAsyncCrid } = require('./getInfo');
 const { updateAsinList, updateRankTask } = require('./updateRankTask');
 const caches = {};
 
@@ -13,7 +13,7 @@ async function getCrid({ res, urlParams, targetPage, backupPage }) {
   if (keywordCache) {
     return res.end(JSON.stringify({ status: 200, keyword, ...keywordCache }));
   }
-  const keywordInfo = await getInfo(targetPage, backupPage, keyword, asin);
+  const keywordInfo = await getAsyncCrid(targetPage, backupPage, keyword, asin);
 
   res.end(
     JSON.stringify({
@@ -46,6 +46,7 @@ module.exports = function startServer(targetPage, backupPage) {
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const path = req.url.split('?')[0];
     const method = req.method;
+    console.log(path);
     if (path === '/getCrid' && method === 'GET') {
       return getCrid({ req, res, urlParams, targetPage, backupPage });
     }
@@ -58,6 +59,27 @@ module.exports = function startServer(targetPage, backupPage) {
       updateRankTask(targetPage, true);
       res.statusCode = 200;
       res.end('ok');
+    }
+
+    if (path === '/relogin' && method === 'GET') {
+      await backupPage.deleteCookie({
+        name: 'session-id',
+        url: 'https://www.amazon.com',
+        domain: '.amazon.com',
+        path: '/',
+        secure: true
+      });
+      await backupPage.reload();
+      await backupPage.waitForSelector('#glow-ingress-line2');  
+      backupPage.click('#nav-global-location-data-modal-action');
+      await backupPage.waitForSelector('#GLUXZipUpdateInput');  
+      backupPage.click('#GLUXZipUpdateInput');
+      await backupPage.type('#GLUXZipUpdateInput', '10111');
+
+      await backupPage.click('#GLUXZipUpdate');
+      setTimeout(() => {
+        backupPage.reload();
+      }, 1000)
     }
 
     res.statusCode = 404;
