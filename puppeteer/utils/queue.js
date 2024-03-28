@@ -4,10 +4,6 @@ function startLoop(targetPage) {
   page = targetPage;
   setInterval(() => {
     page.intervalReload();
-    console.log(
-      '当前队列长度',
-      Object.values(taskMap).reduce((num, item) => num + Number(item.size), 0)
-    );
   }, 5000);
 }
 

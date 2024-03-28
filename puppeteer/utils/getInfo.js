@@ -28,6 +28,17 @@ async function reLogin(backupPage, params) {
       });
     }
     await backupPage.goto('https://www.amazon.com/');
+    backupPage.waitForSelector('.a-text-right')
+    .then(() => {
+      backupPage.evaluate(() => {
+        const btn = document.querySelector('.a-text-right')
+        if (btn.innerText === 'Try different image') {
+          backupPage.click('.a-text-right');
+        }
+      });
+    })
+    .catch(() => {})
+
     await backupPage.waitForSelector('#glow-ingress-line2');
     const t1 =setTimeout(() => {
       backupPage.click('#nav-global-location-data-modal-action');
