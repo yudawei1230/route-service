@@ -75,6 +75,11 @@ let updateSuccessTime = 0
 let updateFailedTime = 0
 async function queryHref(backupPage, { asin, keyword , sprefix, crid }) {
   const cacheKey = `${keyword}_${asin}`
+  const isRightLoc = await backupPage.evaluate(() => {
+    const dom = document.getElementById('glow-ingress-line2');
+    return dom && dom.innerText.includes('New York 10111‌');
+  });
+  if(!isRightLoc) return 
   async function searchHref(page, totalPage) {
     totalPage = totalPage || page
     const src = `https://www.amazon.com/s?k=${keyword}&page=${page}&crid=${crid}qid=${(
@@ -231,7 +236,7 @@ async function getInfo(targetPage, keyword, asin) {
 }
 
 const getCrid = getQueueHandler('getInfo', getInfo);
-
+let sameHrefTime = 0
 async function loopUpdateHref(backupPage, cacheKey) {
   const asin = caches[cacheKey].asin;
   if (!caches[cacheKey]) return;
@@ -245,6 +250,9 @@ async function loopUpdateHref(backupPage, cacheKey) {
   });
   if (href) {
     updateSuccessTime++
+    if (hrefCache[cacheKey] && hrefCache[cacheKey] === href) {
+      sameHrefTime++
+    }
     hrefCache[cacheKey] = href;
   } else {
     updateFailedTime++ 
@@ -255,13 +263,14 @@ async function loopUpdateHref(backupPage, cacheKey) {
 }
 
 async function loopUpdateAsinHrefList(backupPage) {
-  console.log(`dib更新成功次数${updateSuccessTime}, 失败次数${updateFailedTime}, 登录成功次数${loginSuccessTime}, 登录失败次数${loginFailedTime}`)
+  process.stdout.write('\033c');
+  console.log(`dib更新成功次数${updateSuccessTime}, 失败次数${updateFailedTime}, 登录成功次数${loginSuccessTime}, 登录失败次数${loginFailedTime}, dib相同次数${sameHrefTime}`)
   try {
-    await syncReLogin(backupPage);
     const isRightLoc = await backupPage.evaluate(() => {
       const dom = document.getElementById('glow-ingress-line2');
       return dom && dom.innerText.includes('New York 10111‌');
     });
+    await syncReLogin(backupPage);
     if (isRightLoc) {
       console.log('新建轮询更新', '当前轮询数', Object.keys(hrefCache));
       for (const cacheKey in caches) {

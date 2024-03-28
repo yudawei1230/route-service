@@ -4,11 +4,16 @@ function startLoop(targetPage) {
   page = targetPage;
   setInterval(() => {
     page.intervalReload();
+    console.log(
+      '当前队列长度',
+      Object.values(taskMap).reduce((num, item) => num + Number(item.size), 0)
+    );
   }, 5000);
 }
 
 function getQueueHandler(taskType, fn, options) {
   if (!taskMap[taskType]) taskMap[taskType] = new Set()
+  
    if (!(fn instanceof Function)) return;
   return (...params) => {
     let resolve;
@@ -36,6 +41,7 @@ function getQueueHandler(taskType, fn, options) {
       taskMap[taskType].add(cb);
     }
     if (taskMap[taskType].size === 1) cb();
+    
     return new Promise(r => {
       resolve = r;
     });

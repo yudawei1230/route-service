@@ -41,7 +41,7 @@ let backupPage;
     startLoop(targetPage);
     setInterval(async () => {
       reloadResult = null;
-    }, 1000 * 60 * 30);
+    }, 1000 * 60 * 10);
 
     
     syncReLogin(targetPage, { noDeleteCookie: false });

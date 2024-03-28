@@ -9,7 +9,8 @@ async function getCrid({ res, urlParams, targetPage, backupPage }) {
   // 在这里可以对关键字进行处理或其他操作
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;
-  const keywordCache = caches[keyword];
+  const cacheKy = `${keyword}_${asin}`;
+  const keywordCache = caches[cacheKy];
   if (keywordCache) {
     return res.end(JSON.stringify({ status: 200, keyword, ...keywordCache }));
   }
@@ -33,9 +34,9 @@ async function getCrid({ res, urlParams, targetPage, backupPage }) {
 
   if (!keywordCache) {
     if (keywordInfo) {
-      caches[keyword] = keywordInfo;
+      caches[cacheKy] = keywordInfo;
       setTimeout(() => {
-        delete caches[keyword];
+        delete caches[cacheKy];
       }, 5000);
     }
   }
