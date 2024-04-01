@@ -2,8 +2,11 @@
 
 //docker stop token-browser  && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d --rm --name token-browser -v E:\\work\\ec-route-service\\puppeteer:/app  -p 8855:8855 token-browser && docker logs -f token-browser
 
+//docker stop token-browser  && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d --rm --name token-browser -v E:\\work\\ec-route-service\\puppeteer:/app  --network host token-browser && docker logs -f token-browser
+
 const puppeteer = require('puppeteer');
 const fs = require('fs')
+const updateCookie = require('./updateCookie')
 let cookiesList = []
 
 try {
@@ -14,9 +17,23 @@ try {
   cookiesList = []
 }
 
+function cookieIsLatest() {
+  if(cookiesList.length !== 50) return false
+  const last = cookiesList[49]?.[0]
+  if(!last?.time) return false
+  if((Date.now() - last.time) < 60 * 1000 * 30) {
+    return last
+  }
+  return false
+}
+
+let updateTime = 0
+let startTime = Date.now()
 let loginSuccessTime = 0
 let loginFailedTime = 0
 async function reLogin(targetPage) {
+  const isPageClosed = await targetPage.isClosed();
+  if(isPageClosed) return 
   const session = (await targetPage.cookies()).find(
     v => v.name === 'session-id' && v.domain === '.amazon.com'
   );
@@ -88,18 +105,28 @@ async function reLogin(targetPage) {
       return reLogin(targetPage);
     } else {
       loginSuccessTime++
-    const cookies = await targetPage.cookies()
-    if(cookies && cookies.filter(Boolean).length) {
-      cookiesList.length = 50
-      cookiesList.unshift(cookies.map(v => ({ name: v.name, value: v.value, domain: v.domain })))
-    }
-    fs.writeFile('./cookies.txt', JSON.stringify(
-      cookiesList.filter(Boolean)
-    ), (err) => {
-      if(!err) console.log('setCookies success ' + new Date().toLocaleString())
-      else console.log(err.message)
-    })
-    reLogin(targetPage)
+      const cookies = await targetPage.cookies()
+      if(cookies && cookies.filter(Boolean).length) {
+        cookiesList.length = 49
+        cookiesList.unshift(cookies.map(v => ({ name: v.name, value: v.value, domain: v.domain, time: Date.now() })))
+      }
+      fs.writeFile('./cookies.txt', JSON.stringify(
+        cookiesList.filter(Boolean)
+      ), (err) => {
+        ++updateTime
+        const usedTime = ((Date.now() - startTime) / (1000 * 60)).toFixed(2)
+        if(!err) console.log(updateTime, ' setCookies success ' + new Date().toLocaleString(), `耗时: ${usedTime}min`)
+        else console.log(err.message)
+      })
+      const isLatest = cookieIsLatest()
+      if(isLatest) {
+        setTimeout(() => {
+          updateCookie('localhost', 8833)
+          updateCookie('localhost', 8833)
+        }, 3000)
+        return console.log('此轮更新完成', new Date().toLocaleString())
+      }
+      reLogin(targetPage)
     }
   } catch(e) {
     loginFailedTime++
@@ -110,8 +137,10 @@ async function reLogin(targetPage) {
   }
 };
 
-(async () => {
+async function start() {
   try {
+    updateTime = 0
+    startTime = Date.now()
     const tokenBrowser = await puppeteer.launch({
       args: [
         '--no-sandbox',
@@ -132,7 +161,27 @@ async function reLogin(targetPage) {
     await targetPage.goto('https://www.amazon.com/');
 
     setTimeout(() => reLogin(targetPage), 5000);
+
+    return async () => {
+      try {
+        await targetPage.close()
+        await tokenBrowser.close()
+      } catch(e) {}
+    }
   } catch (e) {
     console.log(e)
   }
-})();
+}
+
+
+let stop = start()
+setInterval(async () => {
+  console.log('重启puppeteer获取token')
+  stop = await stop
+  await stop()
+  const isLatest = cookieIsLatest()
+  if(isLatest) {
+    return console.log('cookie是最新的，最晚更新时间为', new Date(isLatest.time).toLocaleString())  
+  }
+  stop = start()
+}, 1000 * 60 * 5)

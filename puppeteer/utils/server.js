@@ -91,6 +91,8 @@ function startServer(targetPage) {
             });
           }
         });
+
+        return 
     }
 
     res.statusCode = 404;
