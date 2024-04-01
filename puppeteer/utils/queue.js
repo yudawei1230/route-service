@@ -18,7 +18,7 @@ function getQueueHandler(taskType, fn, options) {
       if (exec) return;
       exec = true;
       await page.intervalReload();
-      const result = await Promise.resolve(fn(...params)).catch(() => null);
+      const result = await new Promise(resolve => resolve(fn(...params))).catch(() => null);
       taskMap[taskType].delete(cb);
       resolve(result);
       Promise.resolve().then(() => {
@@ -43,6 +43,8 @@ function getQueueHandler(taskType, fn, options) {
     });
   };
 }
+
+exports.taskMap = taskMap
 
 exports.startLoop = startLoop;
 

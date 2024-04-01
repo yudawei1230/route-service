@@ -1,11 +1,14 @@
 const http = require('http');
-const { getAsyncCrid } = require('./getInfo');
+const fs = require('fs')
+const p = require('path')
+const { getAsyncCrid, loadCookies } = require('./getInfo');
 const { updateAsinList, updateRankTask } = require('./updateRankTask');
 const caches = {};
 
-async function getCrid({ res, urlParams, targetPage, backupPage }) {
+async function getCrid({ res, urlParams, targetPage }) {
   const keyword = urlParams.get('keyword');
   const asin = urlParams.get('asin');
+  const brand = urlParams.get('brand');
   // 在这里可以对关键字进行处理或其他操作
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;
@@ -14,7 +17,7 @@ async function getCrid({ res, urlParams, targetPage, backupPage }) {
   if (keywordCache) {
     return res.end(JSON.stringify({ status: 200, keyword, ...keywordCache }));
   }
-  const keywordInfo = await getAsyncCrid(targetPage, backupPage, keyword, asin);
+  const keywordInfo = await getAsyncCrid(targetPage, keyword, asin, brand);
 
   res.end(
     JSON.stringify({
@@ -42,14 +45,14 @@ async function getCrid({ res, urlParams, targetPage, backupPage }) {
   }
 }
 
-module.exports = function startServer(targetPage, backupPage) {
+function startServer(targetPage) {
   const server = http.createServer(async (req, res) => {
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const path = req.url.split('?')[0];
     const method = req.method;
-    console.log(path);
+
     if (path === '/getCrid' && method === 'GET') {
-      return getCrid({ req, res, urlParams, targetPage, backupPage });
+      return getCrid({ req, res, urlParams, targetPage });
     }
 
     if (path === '/updateAsinList' && method === 'POST') {
@@ -62,25 +65,32 @@ module.exports = function startServer(targetPage, backupPage) {
       res.end('ok');
     }
 
-    if (path === '/relogin' && method === 'GET') {
-      await backupPage.deleteCookie({
-        name: 'session-id',
-        url: 'https://www.amazon.com',
-        domain: '.amazon.com',
-        path: '/',
-        secure: true
-      });
-      await backupPage.reload();
-      await backupPage.waitForSelector('#glow-ingress-line2');  
-      backupPage.click('#nav-global-location-data-modal-action');
-      await backupPage.waitForSelector('#GLUXZipUpdateInput');  
-      backupPage.click('#GLUXZipUpdateInput');
-      await backupPage.type('#GLUXZipUpdateInput', '10111');
+    if(path === '/setCookies' && method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+          body += chunk.toString();
+        });
 
-      await backupPage.click('#GLUXZipUpdate');
-      setTimeout(() => {
-        backupPage.reload();
-      }, 1000)
+        req.on('end', async () => {
+          try {
+            const data = JSON.parse(body);
+            const list = data.list;
+            fs.writeFileSync(p.resolve(__dirname, '../cookies.txt'), JSON.stringify(list));
+            loadCookies()
+            res.statusCode = 200;
+            res.end(
+              JSON.stringify({
+                status: 200,
+              })
+            );
+          } catch(e) {
+            console.log(e.message)
+            JSON.stringify({
+              status: 500,
+              message: e.message
+            });
+          }
+        });
     }
 
     res.statusCode = 404;
@@ -92,3 +102,5 @@ module.exports = function startServer(targetPage, backupPage) {
     // updateRankTask(targetPage, true);
   });
 };
+
+module.exports = startServer

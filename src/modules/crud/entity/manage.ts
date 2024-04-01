@@ -20,6 +20,9 @@ export class ShortLinkManageEntity extends BaseEntity {
   @Column({ comment: '跳转链接', length: 255 })
   redirectUrl: string;
 
+  @Column({ comment: '品牌', length: 500 })
+  brand: string;
+
   @Column({ comment: '关键词', length: 50 })
   keyword: string;
 

@@ -1,103 +1,86 @@
-const { getQueueHandler } = require('./queue');
+const fs = require('fs')
+const path = require('path')
+const { taskMap, getQueueHandler } = require('./queue');
 const lastGetHrefPage = {}
-
+const cookiesList = []
 let loginSuccessTime = 0
 let loginFailedTime = 0
-async function reLogin(backupPage, params) {
-  const session = (await backupPage.cookies()).find(
-    v => v.name === 'session-id' && v.domain === '.amazon.com'
-  );
-  if (!session) {
-    setTimeout(() => reLogin(backupPage, params), 3000);
-    return 
-  }
+let cookieIndex = 0
+function loadCookies() {
+  console.log('重置cookies')
   try {
-    if (params?.noDeleteCookie !== false) {
-      const cookies = await backupPage.cookies()
-      for(const item of cookies) {
-        if(item.name.includes('session')) {
-          await backupPage.deleteCookie(item)
-        }
-      }
-      await backupPage.deleteCookie({
-        name: 'ubid-main',
-        url: 'https://www.amazon.com',
-        domain: '.amazon.com',
-        path: '/',
-        secure: true,
-      });
-    }
-    await backupPage.goto('https://www.amazon.com/');
-    backupPage.waitForSelector('.a-text-right')
-    .then(() => {
-      backupPage.evaluate(() => {
-        const btn = document.querySelector('.a-text-right')
-        if (btn.innerText === 'Try different image') {
-          backupPage.click('.a-text-right');
-        }
-      });
-    })
-    .catch(() => {})
-
-    await backupPage.waitForSelector('#glow-ingress-line2');
-    const t1 =setTimeout(() => {
-      backupPage.click('#nav-global-location-data-modal-action');
-    }, 10000)
-    const t2 = setTimeout(() => {
-      backupPage.click('#nav-global-location-data-modal-action');
-    }, 20000);
-    backupPage.click('#nav-global-location-data-modal-action');
-    await backupPage.waitForSelector('#GLUXZipUpdateInput');
-    clearTimeout(t1)
-    clearTimeout(t2)
-    backupPage.click('#GLUXZipUpdateInput');
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    await backupPage.evaluate(() => {
-      const input = document.getElementById('GLUXZipUpdateInput');
-      if (input) {
-        input.value = '10111'
-      }
-    });
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    await backupPage.click('#GLUXZipUpdate');
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    await backupPage.reload();
-    await backupPage.waitForSelector('#glow-ingress-line2');
-    const isRightLoc = await backupPage.evaluate(() => {
-      const dom = document.getElementById('glow-ingress-line2')
-      return dom && dom.innerText.includes('New York 10111‌');
-    });
-    if(!isRightLoc) {
-      console.log('错误地址重新登录')
-      loginFailedTime++
-      return reLogin(backupPage, params);
-    } else {
-      loginSuccessTime++
-    }
+    const f = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../cookies.txt')).toString())
+    cookiesList.length = 0
+    cookiesList.push(...f)
+    cookieIndex = 0
   } catch(e) {
-    loginFailedTime++
-    console.log(e.message)
-    await new Promise(resolve =>
-      setTimeout(() => resolve(reLogin(backupPage, params)), 1000)
-    );
+    console.log(e)
+    cookiesList.length = 0
   }
+}
+loadCookies()
+
+exports.cookiesList = cookiesList
+
+
+async function reLogin(targetPage, params) {
+  if(cookieIndex >= 50) {
+    loadCookies()
+  } else cookieIndex++
+  for(const item of cookiesList?.[cookieIndex] || []) {
+    await targetPage.setCookie({
+      ...item,
+      path: '/',
+    }); 
+  }
+  await targetPage.goto('https://www.amazon.com/');
+  let isReLogin
+  let loadTimeout
+  const pms =  new Promise(resolve => {
+    loadTimeout = setTimeout(() => {
+      isReLogin = true
+      resolve(reLogin(targetPage))
+    },3000)
+  })
+  await Promise.race([
+    pms,
+    targetPage.waitForSelector('#glow-ingress-line2').catch(() => {})
+  ])
+  clearTimeout(loadTimeout)
+  if(isReLogin) return pms
+
+  const isRightLoc = await targetPage.evaluate(() => {
+    const dom = document.getElementById('glow-ingress-line2')
+    return dom && dom.innerText.includes('New York 10111‌');
+  });
+  if(!isRightLoc) {
+    console.log('错误地址重新登录')
+    loginFailedTime++
+    return reLogin(targetPage, params);
+  } else {
+    loginSuccessTime++
+  }  
 }
 let updateSuccessTime = 0
 let updateFailedTime = 0
-async function queryHref(backupPage, { asin, keyword , sprefix, crid }) {
-  const cacheKey = `${keyword}_${asin}`
-  const isRightLoc = await backupPage.evaluate(() => {
+async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isFirst, cacheKey }) {
+  const isRightLoc = await targetPage.evaluate(() => {
     const dom = document.getElementById('glow-ingress-line2');
     return dom && dom.innerText.includes('New York 10111‌');
   });
+  let brandStr = (!brand || hrefCache[cacheKey]) ? '' : ` ${brand || ''}`
   if(!isRightLoc) return 
-  async function searchHref(page, totalPage) {
+  async function searchHref(page, totalPage, lastTry) {
+    if(!!taskMap.cridReq?.size && !isFirst) {
+      return 'stop'
+    }
+    const noTotalPage = !totalPage
     totalPage = totalPage || page
-    const src = `https://www.amazon.com/s?k=${keyword}&page=${page}&crid=${crid}qid=${(
+    const src = `https://www.amazon.com/s?k=${keyword}${brandStr}&page=${page}&crid=${crid}qid=${(
       Date.now() / 1000
     ).toFixed(0)}&sprefix=${sprefix}&ref=sr_pg_${page}`;
-    await backupPage.goto(src);
-    const info = await backupPage.evaluate(({ page, asin }) => {
+    await targetPage.goto(src);
+    const info = await targetPage.evaluate(({ page, asin }) => {
       const doc = document.body;
       var allPage;
       var dom = doc && doc.querySelectorAll(`div[data-asin=${asin}] a[href]`);
@@ -125,11 +108,16 @@ async function queryHref(backupPage, { asin, keyword , sprefix, crid }) {
     }
     
     if (info && info.href) {
-      lastGetHrefPage[cacheKey] = page
+      if (brandStr && !isFirst) console.log('兜底dib获取成功', cacheKey)
+      if(!brandStr) lastGetHrefPage[cacheKey] = page
       return info.href;
     }
     else if (totalPage && totalPage > page) {
       return searchHref(page + 1, totalPage);
+    }
+    else if(!noTotalPage && brand && !lastTry){
+      brandStr = ` ${brand || ''}`
+      return searchHref(1, 0, true)
     }
   }
   if (lastGetHrefPage[cacheKey]) {
@@ -139,31 +127,28 @@ async function queryHref(backupPage, { asin, keyword , sprefix, crid }) {
   return searchHref(1);
 }
 
-const syncSearchHref = getQueueHandler('queryHref', queryHref, { appendHead: true });
-const asyncSearchHref = getQueueHandler('queryHref', queryHref);
-const syncReLogin = getQueueHandler('queryHref', reLogin, { appendHead: true });
+const syncSearchHref = getQueueHandler('getInfo', queryHref, { appendHead: true });
+const asyncSearchHref = getQueueHandler('getInfo', queryHref);
+const syncReLogin = getQueueHandler('getInfo', reLogin);
 
 exports.syncReLogin = syncReLogin;
+exports.loadCookies = loadCookies;
 
 const caches ={}
 const hrefCache = {}
-const timeoutMap = {}
-async function getInfo(targetPage, keyword, asin) {
+async function getInfo(targetPage, keyword, asin, brand) {
   if (!asin) return {
     crid: '',
     sprefix: '',
     refTag: '',
     href: '',
   };
-    if (!targetPage)
-      // 获取当前页面的URL
-      return;
+  if (!targetPage)
+    // 获取当前页面的URL
+    return;
   await targetPage.intervalReload();
   const currentUrl = await targetPage.url();
   const cacheKey = `${asin}_${decodeURIComponent(keyword)}`;
-  if (currentUrl.includes('?')) {
-    await targetPage.goBack();
-  }
   if (!currentUrl.includes('https://www.amazon.com')) return;
   await targetPage.waitForSelector('input[name=field-keywords]');
   
@@ -198,6 +183,7 @@ async function getInfo(targetPage, keyword, asin) {
             crid: 'crid=' + data.responseId,
             sprefix: (await sprefix) || '',
             refTag: target ? target.refTag : '',
+            brand
           };
 
           if (entity.crid) {
@@ -222,9 +208,12 @@ async function getInfo(targetPage, keyword, asin) {
   };
   targetPage.click('input[name="field-keywords"]');
   targetPage.on('response', responseHandler);
+  await new Promise(resolve => setTimeout(resolve, 400))
   await targetPage.keyboard.down('Control'); // 按下 Control 键
   await targetPage.keyboard.press('A'); // 按下 A 键，选中所有文本
+  await new Promise(resolve => setTimeout(resolve, 400))
   await targetPage.keyboard.up('Control'); // 释放 Control 键
+  await new Promise(resolve => setTimeout(resolve, 400))
   await targetPage.keyboard.press('Backspace'); // 按下删除键，清空输入框的值
   await targetPage.type(
     'input[name="field-keywords"]',
@@ -246,19 +235,28 @@ async function getInfo(targetPage, keyword, asin) {
   });
 }
 
-const getCrid = getQueueHandler('getInfo', getInfo);
+const getCrid = getQueueHandler('getInfo', getInfo, { appendHead: true });
 let sameHrefTime = 0
-async function loopUpdateHref(backupPage, cacheKey) {
+async function loopUpdateHref(targetPage, cacheKey) {
   const asin = caches[cacheKey].asin;
   if (!caches[cacheKey]) return;
   console.log('异步更新dib', cacheKey);
 
-  const href = await asyncSearchHref(backupPage, {
+  const href = await asyncSearchHref(targetPage, {
     keyword: caches[cacheKey].keyword,
     crid: caches[cacheKey].crid,
     sprefix: caches[cacheKey].sprefix,
     asin,
+    brand: caches[cacheKey].brand,
+    cacheKey
   });
+  if(href === 'stop') {
+    while(!!taskMap.cridReq?.size) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    await loopUpdateHref(targetPage, cacheKey)
+    return 
+  }
   if (href) {
     updateSuccessTime++
     if (hrefCache[cacheKey] && hrefCache[cacheKey] === href) {
@@ -273,45 +271,51 @@ async function loopUpdateHref(backupPage, cacheKey) {
     : console.log('异步更新dib失败', cacheKey);
 }
 
-async function loopUpdateAsinHrefList(backupPage) {
+async function loopUpdateAsinHrefList(targetPage) {
   process.stdout.write('\033c');
   console.log(`dib更新成功次数${updateSuccessTime}, 失败次数${updateFailedTime}, 登录成功次数${loginSuccessTime}, 登录失败次数${loginFailedTime}, dib相同次数${sameHrefTime}`)
   try {
-    const isRightLoc = await backupPage.evaluate(() => {
+    const isRightLoc = await targetPage.evaluate(() => {
       const dom = document.getElementById('glow-ingress-line2');
       return dom && dom.innerText.includes('New York 10111‌');
     });
-    await syncReLogin(backupPage);
+    await syncReLogin(targetPage);
     if (isRightLoc) {
       console.log('新建轮询更新', '当前轮询数', Object.keys(hrefCache));
       for (const cacheKey in caches) {
-        await loopUpdateHref(backupPage, cacheKey);
+        while(!!taskMap.cridReq?.size) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+        await loopUpdateHref(targetPage, cacheKey);
       }
     }
   } catch(e) {
     console.log(e)
   }
     
-  setTimeout(() => loopUpdateAsinHrefList(backupPage), 30000);
+  setTimeout(() => loopUpdateAsinHrefList(targetPage), 30000);
 }
 exports.loopUpdateAsinHrefList = loopUpdateAsinHrefList;
-exports.getAsyncCrid = async function (targetPage, backupPage, keyword, asin) {
+exports.getAsyncCrid = getQueueHandler('cridReq', async function (targetPage, keyword, asin, brand) {
   const cacheKey = `${asin}_${decodeURIComponent(keyword)}`;
-  const data = await getCrid(targetPage, keyword, asin);
+
+  const data = await getCrid(targetPage, keyword, asin, brand)
   if (data.cid) {
     data.href = hrefCache[cacheKey];
   }
-  if (data.cid && (!data.href || !timeoutMap[cacheKey])) {
+  if (data.cid && (!data.href)) {
     data.href =
       hrefCache[cacheKey] ||
-      syncSearchHref(backupPage, {
+      syncSearchHref(targetPage, {
         keyword,
         crid: data.cid,
         sprefix: data.sprefix,
         asin,
+        brand,
+        isFirst: true
       });
     data.href = await data.href;
     hrefCache[cacheKey] = data.href;
   }
   return data;
-};
+});
