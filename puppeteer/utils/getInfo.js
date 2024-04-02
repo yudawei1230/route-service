@@ -3,29 +3,32 @@ const path = require('path')
 const { taskMap, getQueueHandler } = require('./queue');
 const lastGetHrefPage = {}
 const cookiesList = []
+let isLoginSuccess = false
+let lastLoginSuccessTime = null
 let loginSuccessTime = 0
 let loginFailedTime = 0
 let cookieIndex = 0
-function loadCookies() {
+const loadCookies = getQueueHandler('loadCookies', function() {
   console.log('重置cookies')
   try {
     const f = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../cookies.txt')).toString())
     cookiesList.length = 0
     cookiesList.push(...f)
     cookieIndex = 0
+    return cookiesList
   } catch(e) {
-    console.log(e)
     cookiesList.length = 0
   }
-}
+}) 
 loadCookies()
-
 exports.cookiesList = cookiesList
 
 
 async function reLogin(targetPage, params) {
+  if(lastLoginSuccessTime && loginFailedTime) console.log('上次登录成功时间', lastLoginSuccessTime)
   if(cookieIndex >= 50) {
-    loadCookies()
+    cookieIndex = 0
+    await loadCookies()
   } else cookieIndex++
   for(const item of cookiesList?.[cookieIndex] || []) {
     await targetPage.setCookie({
@@ -33,12 +36,14 @@ async function reLogin(targetPage, params) {
       path: '/',
     }); 
   }
-  await targetPage.goto('https://www.amazon.com/');
+  await targetPage.goto('https://www.amazon.com/')
   let isReLogin
   let loadTimeout
   const pms =  new Promise(resolve => {
     loadTimeout = setTimeout(() => {
       isReLogin = true
+      loginFailedTime++
+      console.log('页面加载异常', loginFailedTime)
       resolve(reLogin(targetPage))
     },3000)
   })
@@ -54,11 +59,15 @@ async function reLogin(targetPage, params) {
     return dom && dom.innerText.includes('New York 10111‌');
   });
   if(!isRightLoc) {
-    console.log('错误地址重新登录')
+    console.log('错误地址重新登录', loginFailedTime)
+    isLoginSuccess = false
     loginFailedTime++
     return reLogin(targetPage, params);
   } else {
+    lastLoginSuccessTime = new Date().toLocaleString()
+    isLoginSuccess = true
     loginSuccessTime++
+    loginFailedTime = 0
   }  
 }
 let updateSuccessTime = 0
@@ -146,7 +155,6 @@ async function getInfo(targetPage, keyword, asin, brand) {
   if (!targetPage)
     // 获取当前页面的URL
     return;
-  await targetPage.intervalReload();
   const currentUrl = await targetPage.url();
   const cacheKey = `${asin}_${decodeURIComponent(keyword)}`;
   if (!currentUrl.includes('https://www.amazon.com')) return;
@@ -239,7 +247,6 @@ const getCrid = getQueueHandler('getInfo', getInfo, { appendHead: true });
 let sameHrefTime = 0
 async function loopUpdateHref(targetPage, cacheKey) {
   const asin = caches[cacheKey].asin;
-  if (!caches[cacheKey]) return;
   console.log('异步更新dib', cacheKey);
 
   const href = await asyncSearchHref(targetPage, {
@@ -263,7 +270,11 @@ async function loopUpdateHref(targetPage, cacheKey) {
       sameHrefTime++
     }
     hrefCache[cacheKey] = href;
+    if(caches[cacheKey]) caches[cacheKey].lastSetHrefTime = new Date().toLocaleString()
   } else {
+    if(caches[cacheKey]) {
+      caches[cacheKey].updateFailed = caches[cacheKey].updateFailed ? (caches[cacheKey].updateFailed + 1) : 1
+    }
     updateFailedTime++ 
   }
   href
@@ -275,14 +286,22 @@ async function loopUpdateAsinHrefList(targetPage) {
   process.stdout.write('\033c');
   console.log(`dib更新成功次数${updateSuccessTime}, 失败次数${updateFailedTime}, 登录成功次数${loginSuccessTime}, 登录失败次数${loginFailedTime}, dib相同次数${sameHrefTime}`)
   try {
+    await syncReLogin(targetPage);
     const isRightLoc = await targetPage.evaluate(() => {
       const dom = document.getElementById('glow-ingress-line2');
       return dom && dom.innerText.includes('New York 10111‌');
     });
-    await syncReLogin(targetPage);
     if (isRightLoc) {
-      console.log('新建轮询更新', '当前轮询数', Object.keys(hrefCache));
+      console.log('新建轮询更新', '当前轮询数', Object.keys(caches));
       for (const cacheKey in caches) {
+        if(caches[cacheKey].lastSetHrefTime) {
+          console.log(cacheKey, caches[cacheKey].lastSetHrefTime)
+          continue
+        }
+        if(caches[cacheKey].updateFailed > 10) {
+          delete caches[cacheKey]
+          continue
+        }
         while(!!taskMap.cridReq?.size) {
           await new Promise(resolve => setTimeout(resolve, 1000))
         }
@@ -315,7 +334,8 @@ exports.getAsyncCrid = getQueueHandler('cridReq', async function (targetPage, ke
         isFirst: true
       });
     data.href = await data.href;
-    hrefCache[cacheKey] = data.href;
+    if(!data.href) delete caches[cacheKey]
+    if(data.href) hrefCache[cacheKey] = data.href;
   }
   return data;
 });

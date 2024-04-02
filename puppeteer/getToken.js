@@ -1,6 +1,6 @@
-//docker stop token-browser  && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d --rm --name token-browser -v $(pwd):/app  -p 8855:8855 token-browser && docker logs -f token-browser
+//docker stop token-browser && docker rm -v token-browser && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d  --restart always --name token-browser -v $(pwd):/app  -p 8855:8855 -p 8866:8866  token-browser && docker logs -f token-browser
 
-//docker stop token-browser  && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d --rm --name token-browser -v E:\\work\\ec-route-service\\puppeteer:/app  -p 8855:8855 token-browser && docker logs -f token-browser
+//docker stop token-browser && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d --restart always --name token-browser -v E:\\work\\ec-route-service\\puppeteer:/app  -p 8855:8855 -p 8866:8866  token-browser && docker logs -f token-browser
 
 //docker stop token-browser  && docker rmi token-browser && docker build -t token-browser -f ./GetTokenDockerfile . && docker run -d --rm --name token-browser -v E:\\work\\ec-route-service\\puppeteer:/app  --network host token-browser && docker logs -f token-browser
 
@@ -121,8 +121,8 @@ async function reLogin(targetPage) {
       const isLatest = cookieIsLatest()
       if(isLatest) {
         setTimeout(() => {
-          updateCookie('localhost', 8833)
-          updateCookie('localhost', 8833)
+          // updateCookie('localhost', 8833)
+          updateCookie('www.ffeerc.com', 443)
         }, 3000)
         return console.log('此轮更新完成', new Date().toLocaleString())
       }
@@ -158,30 +158,67 @@ async function start() {
       }); 
     }
 
-    await targetPage.goto('https://www.amazon.com/');
+    await targetPage.goto('https://www.amazon.com/').catch(() => {
+      start()
+      throw new Error('打开浏览器失败')
+    });
 
     setTimeout(() => reLogin(targetPage), 5000);
-
-    return async () => {
-      try {
-        await targetPage.close()
-        await tokenBrowser.close()
-      } catch(e) {}
-    }
   } catch (e) {
     console.log(e)
   }
 }
 
 
-let stop = start()
-setInterval(async () => {
-  console.log('重启puppeteer获取token')
-  stop = await stop
-  await stop()
-  const isLatest = cookieIsLatest()
-  if(isLatest) {
-    return console.log('cookie是最新的，最晚更新时间为', new Date(isLatest.time).toLocaleString())  
+const isLatest = cookieIsLatest()
+console.log('puppeteer获取token, 当前时间：', new Date().toLocaleString())
+if(isLatest) {
+  console.log('cookie是最新的，最晚更新时间为', new Date(isLatest.time).toLocaleString())  
+} else {
+  const time = cookiesList[cookiesList.length - 1]?.[0]?.time
+  if(time) {
+    console.log("上次更新时间：", new Date(time).toLocaleString())
   }
-  stop = start()
+}
+
+start()
+setInterval(async () => {
+  process.exit()
 }, 1000 * 60 * 5)
+
+const http = require('http');
+
+const server = http.createServer(async (req, res) => {
+  const urlParams = new URLSearchParams(req.url.split('?')[1]);
+  const path = req.url.split('?')[0];
+  const method = req.method;
+  if(path === '/getCookies' && method === 'GET') {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.statusCode = 200;
+    res.end(
+      JSON.stringify(cookiesList)
+    );
+    return 
+  }
+
+  if(path === '/getLatest' && method === 'GET') {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.statusCode = 200;
+    const time = cookiesList[0]?.[0]?.time
+    const lastTime = cookiesList[cookiesList.length - 1]?.[0]?.time
+    res.end(
+      JSON.stringify({
+        message: time ? "上次更新时间：" + new Date(time).toLocaleString() + ';最晚更新时间：' +new Date(lastTime).toLocaleString() : '暂无更新信息'
+      })
+    );
+    
+    return 
+  }
+
+  res.statusCode = 404;
+  res.end();
+})
+
+server.listen(8866, () => {
+  console.log('Server is running on port 8866');
+});

@@ -1,11 +1,4 @@
 const taskMap = {}
-let page;
-function startLoop(targetPage) {
-  page = targetPage;
-  setInterval(() => {
-    page.intervalReload();
-  }, 5000);
-}
 
 function getQueueHandler(taskType, fn, options) {
   if (!taskMap[taskType]) taskMap[taskType] = new Set()
@@ -17,8 +10,7 @@ function getQueueHandler(taskType, fn, options) {
     const cb = async () => {
       if (exec) return;
       exec = true;
-      await page.intervalReload();
-      const result = await new Promise(resolve => resolve(fn(...params))).catch(() => null);
+      const result = await new Promise(resolve => resolve(fn(...params))).catch((e) => console.log(e));
       taskMap[taskType].delete(cb);
       resolve(result);
       Promise.resolve().then(() => {
@@ -29,6 +21,10 @@ function getQueueHandler(taskType, fn, options) {
         }
       });
     };
+    if (taskMap[taskType].size > 30) {
+      // 退出重启
+      process.exit()
+    }
     if (options?.appendHead) {
       taskMap[taskType] = new Set(
         [cb].concat(Array.from(taskMap[taskType].values()))
@@ -45,7 +41,5 @@ function getQueueHandler(taskType, fn, options) {
 }
 
 exports.taskMap = taskMap
-
-exports.startLoop = startLoop;
 
 exports.getQueueHandler = getQueueHandler;

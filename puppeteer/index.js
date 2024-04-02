@@ -1,8 +1,7 @@
 
 const puppeteer = require('puppeteer');
 const startServer = require('./utils/server');
-const { startLoop } = require('./utils/queue');
-const { syncReLogin, loopUpdateAsinHrefList } = require('./utils/getInfo');
+const { loopUpdateAsinHrefList } = require('./utils/getInfo');
 let targetPage;
 
 (async () => {
@@ -17,22 +16,8 @@ let targetPage;
       ],
     });
     targetPage = await browser.newPage();
-    await targetPage.goto('https://www.amazon.com/');
-
-    let reloadResult = true;
-    targetPage.intervalReload = () => {
-      if (reloadResult) return reloadResult;
-      reloadResult = targetPage.reload();
-      return reloadResult;
-    };
-
-    startLoop(targetPage);
-    setInterval(async () => {
-      reloadResult = null;
-    }, 1000 * 60 * 10);
-
-    syncReLogin(targetPage)
-    setTimeout(() => loopUpdateAsinHrefList(targetPage), 30000);
+    loopUpdateAsinHrefList(targetPage)
+    // await targetPage.goto('https://www.amazon.com/')
     startServer(targetPage);
   } catch (e) {
     console.log(e)

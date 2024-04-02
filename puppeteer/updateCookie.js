@@ -1,4 +1,4 @@
-const http = require('http')
+const https = require('https')
 const fs = require('fs')
 
 module.exports = function (origin, port) {
@@ -32,7 +32,7 @@ module.exports = function (origin, port) {
     };
   
     // 发起 POST 请求
-    const req = http.request(options, (res) => {
+    const req = https.request(options, (res) => {
       console.log(`状态码: ${res.statusCode}`);
   
       res.on('data', (chunk) => {

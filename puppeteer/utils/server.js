@@ -18,7 +18,6 @@ async function getCrid({ res, urlParams, targetPage }) {
     return res.end(JSON.stringify({ status: 200, keyword, ...keywordCache }));
   }
   const keywordInfo = await getAsyncCrid(targetPage, keyword, asin, brand);
-
   res.end(
     JSON.stringify({
       status: 200,
@@ -93,6 +92,15 @@ function startServer(targetPage) {
         });
 
         return 
+    }
+
+    if(path === '/getCookies' && method === 'GET') {
+      const cookies = await loadCookies()
+      res.statusCode = 200;
+      res.end(
+        JSON.stringify(cookies)
+      );
+      return 
     }
 
     res.statusCode = 404;
