@@ -121,11 +121,17 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
       if(!brandStr) lastGetHrefPage[cacheKey] = page
       return info.href;
     }
+    else if (lastTry) {
+      return 
+    }
     else if (totalPage && totalPage > page) {
       return searchHref(page + 1, totalPage);
     }
     else if(!noTotalPage && brand && !lastTry){
       brandStr = ` ${brand || ''}`
+      const href = await searchHref(1, 0, true)
+      if(href) return href
+      keyword = asin
       return searchHref(1, 0, true)
     }
   }

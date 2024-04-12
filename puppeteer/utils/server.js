@@ -15,9 +15,18 @@ async function getCrid({ res, urlParams, targetPage }) {
   const cacheKy = `${keyword}_${asin}`;
   const keywordCache = caches[cacheKy];
   if (keywordCache) {
-    return res.end(JSON.stringify({ status: 200, keyword, ...keywordCache }));
+    return res.end(JSON.stringify({ status: 200, keyword, ...Object.assign(
+      {
+        crid: '',
+        sprefix: '',
+        refTag: '',
+        href: '',
+      },
+      (await keywordCache) || {}
+    ) }));
   }
-  const keywordInfo = await getAsyncCrid(targetPage, keyword, asin, brand);
+  caches[cacheKy] =  getAsyncCrid(targetPage, keyword, asin, brand);
+  const keywordInfo = await caches[cacheKy]
   res.end(
     JSON.stringify({
       status: 200,
@@ -33,7 +42,9 @@ async function getCrid({ res, urlParams, targetPage }) {
       ),
     })
   );
-
+  if(!keywordInfo) {
+    delete caches[cacheKy];
+  }
   if (!keywordCache) {
     if (keywordInfo) {
       caches[cacheKy] = keywordInfo;
