@@ -9,6 +9,7 @@ async function getCrid({ res, urlParams, targetPage }) {
   const keyword = urlParams.get('keyword');
   const asin = urlParams.get('asin');
   const brand = urlParams.get('brand');
+  console.log('getCrid', asin, keyword)
   // 在这里可以对关键字进行处理或其他操作
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;

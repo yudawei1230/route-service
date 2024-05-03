@@ -16,10 +16,18 @@ let targetPage;
       ],
     });
     targetPage = await browser.newPage();
-    loopUpdateAsinHrefList(targetPage)
-    // await targetPage.goto('https://www.amazon.com/')
+    
+    targetPage.on('error', (e) => {
+      process.exit()
+    })
     startServer(targetPage);
+    await targetPage.goto('https://www.amazon.com/')
+    loopUpdateAsinHrefList(targetPage)
   } catch (e) {
     console.log(e)
   }
 })();
+
+setTimeout(() => {
+  process.exit()
+}, 60 * 1000 * 60)

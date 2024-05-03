@@ -83,7 +83,7 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
     if(!!taskMap.cridReq?.size && !isFirst) {
       return 'stop'
     }
-    const noTotalPage = !totalPage
+    const noTotalPage = totalPage === 0
     totalPage = totalPage || page
     const src = `https://www.amazon.com/s?k=${keyword}${brandStr}&page=${page}&crid=${crid}qid=${(
       Date.now() / 1000
@@ -102,15 +102,25 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
           .map(v => Number(v.innerText))
           .find(v => v);
       }
-      if (dom) {
-        var href = [...dom].find(v => v.href.includes(`/${asin}/`));
+      if (dom && dom.length) {
+        let hrefDom = [...dom].find(v => v.href.includes(`/${asin}/`) || v.href.includes('/sspa/click?'));
+        let href 
+        if(hrefDom) {
+          const url = hrefDom.href
+          if(url && url.includes('/sspa/click?')) {
+            href = (new URLSearchParams(url)).get('url')
+          } else {
+            href = url
+          }
+          href = href || url
+        }
         return {
-          href: href && href.href,
+          href,
           page,
           allPage,
         };
       }
-      return {}
+      return { allPage }
     }, { page, asin });
     if(info.allPage) {
       totalPage = info.allPage;
@@ -124,13 +134,15 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
     else if (lastTry) {
       return 
     }
-    else if (totalPage && totalPage > page) {
+    else if (!noTotalPage && totalPage && totalPage > page) {
       return searchHref(page + 1, totalPage);
     }
-    else if(!noTotalPage && brand && !lastTry){
-      brandStr = ` ${brand || ''}`
-      const href = await searchHref(1, 0, true)
-      if(href) return href
+    else if(brand && !lastTry){
+      if(brandStr !== ` ${brand || ''}`) {
+        brandStr = ` ${brand || ''}`
+        const href = await searchHref(1, 0, true)
+        if(href) return href
+      }
       keyword = asin
       return searchHref(1, 0, true)
     }
@@ -325,6 +337,7 @@ exports.getAsyncCrid = getQueueHandler('cridReq', async function (targetPage, ke
   const cacheKey = `${asin}_${decodeURIComponent(keyword)}`;
 
   const data = await getCrid(targetPage, keyword, asin, brand)
+  if(!data) return
   if (data.cid) {
     data.href = hrefCache[cacheKey];
   }

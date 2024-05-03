@@ -4,7 +4,7 @@
 #docker build -t ec-service .
 #docker save -o ec-service.tar ec-service
 #docker load -i ec-service.tar
-#docker run -d -p 8001:8001 --network host --name service ec-service
+#docker run -d  -p 8001:8001 --name service ec-service
 
 
 #yum install lrzsz
