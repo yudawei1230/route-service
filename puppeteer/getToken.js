@@ -51,6 +51,10 @@ async function reLogin(targetPage) {
   
   try {
     await targetPage.goto('https://www.amazon.com/');
+    await targetPage.evaluate(() => {
+      location.reload(true)
+    })
+    await new Promise(resolve => setTimeout(resolve, 3000))
     targetPage.waitForSelector('.a-text-right')
     .then(async () => {
       const tryDiffImage = await targetPage.evaluate(() => {
@@ -79,6 +83,7 @@ async function reLogin(targetPage) {
     
     clickAction()
     const timeout = setInterval(clickAction, 3000);
+    setTimeout(() => clearInterval(timeout), 13000)
     await targetPage.waitForSelector('#GLUXZipUpdateInput').finally(() => {
       clearInterval(timeout)
     });
