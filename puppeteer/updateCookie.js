@@ -33,23 +33,23 @@ module.exports = function (origin, port) {
   
     // 发起 POST 请求
     const req = https.request(options, (res) => {
-      console.log(`状态码: ${res.statusCode}`);
+      // console.log(`状态码: ${res.statusCode}`);
   
       res.on('data', (chunk) => {
-        console.log(`响应主体: ${chunk}`);
+        // console.log(`响应主体: ${chunk}`);
       });
   
       res.on('end', () => {
-        console.log('响应已完成');
+        // console.log('响应已完成');
       });
     });
     req.on('error', (e) => {
-      console.error(`连接出错: ${e.message}`);
+      // console.error(`连接出错: ${e.message}`);
     });
     // 发送 POST 数据
     req.write(postData);
     req.end();
   } catch(e) {
-    console.log(e)
+    // console.log(e)
   }
 }

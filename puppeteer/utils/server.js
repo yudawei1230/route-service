@@ -1,7 +1,7 @@
 const http = require('http');
 const fs = require('fs')
 const p = require('path')
-const { getAsyncCrid, loadCookies } = require('./getInfo');
+const { getAsyncCrid, loadCookies, syncReLogin } = require('./getInfo');
 const { updateAsinList, updateRankTask } = require('./updateRankTask');
 const caches = {};
 
@@ -9,7 +9,6 @@ async function getCrid({ res, urlParams, targetPage }) {
   const keyword = urlParams.get('keyword');
   const asin = urlParams.get('asin');
   const brand = urlParams.get('brand');
-  console.log('getCrid', asin, keyword)
   // 在这里可以对关键字进行处理或其他操作
   res.setHeader('Content-Type', 'application/json');
   res.statusCode = 200;
@@ -87,7 +86,7 @@ function startServer(targetPage) {
             const data = JSON.parse(body);
             const list = data.list;
             fs.writeFileSync(p.resolve(__dirname, '../cookies.txt'), JSON.stringify(list));
-            loadCookies()
+            // syncReLogin(targetPage)
             res.statusCode = 200;
             res.end(
               JSON.stringify({

@@ -22,12 +22,11 @@ let targetPage;
     })
     startServer(targetPage);
     await targetPage.goto('https://www.amazon.com/')
-    loopUpdateAsinHrefList(targetPage)
+    setTimeout(() => {
+      loopUpdateAsinHrefList(targetPage)
+    }, 60000)
   } catch (e) {
     console.log(e)
   }
 })();
 
-setTimeout(() => {
-  process.exit()
-}, 60 * 1000 * 60)

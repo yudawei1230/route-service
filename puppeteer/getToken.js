@@ -27,10 +27,10 @@ function cookieIsLatest() {
   return false
 }
 
-let updateTime = 0
-let startTime = Date.now()
-let loginSuccessTime = 0
-let loginFailedTime = 0
+// let updateTime = 0
+// let startTime = Date.now()
+// let loginSuccessTime = 0
+// let loginFailedTime = 0
 async function reLogin(targetPage) {
   const isPageClosed = await targetPage.isClosed();
   if(isPageClosed) return 
@@ -105,11 +105,11 @@ async function reLogin(targetPage) {
       return dom && dom.innerText.includes('New York 10111‌');
     });
     if(!isRightLoc) {
-      console.log('错误地址重新登录')
-      loginFailedTime++
+      // console.log('错误地址重新登录')
+      // loginFailedTime++
       return reLogin(targetPage);
     } else {
-      loginSuccessTime++
+      // loginSuccessTime++
       const cookies = await targetPage.cookies()
       if(cookies && cookies.filter(Boolean).length) {
         cookiesList.length = 49
@@ -118,24 +118,25 @@ async function reLogin(targetPage) {
       fs.writeFile('./cookies.txt', JSON.stringify(
         cookiesList.filter(Boolean)
       ), (err) => {
-        ++updateTime
-        const usedTime = ((Date.now() - startTime) / (1000 * 60)).toFixed(2)
-        if(!err) console.log(updateTime, ' setCookies success ' + new Date().toLocaleString(), `耗时: ${usedTime}min`)
-        else console.log(err.message)
+        // ++updateTime
+        // const usedTime = ((Date.now() - startTime) / (1000 * 60)).toFixed(2)
+        // if(!err) console.log(updateTime, ' setCookies success ' + new Date().toLocaleString(), `耗时: ${usedTime}min`)
+        // else console.log(err.message)
       })
       const isLatest = cookieIsLatest()
       if(isLatest) {
         setTimeout(() => {
-          // updateCookie('localhost', 8833)
           updateCookie('www.ffeerc.com', 443)
         }, 3000)
-        return console.log('此轮更新完成', new Date().toLocaleString())
+        return //console.log('此轮更新完成', new Date().toLocaleString())
+      } else {
+        updateCookie('www.ffeerc.com', 443)
+        reLogin(targetPage)
       }
-      reLogin(targetPage)
     }
   } catch(e) {
-    loginFailedTime++
-    console.log('failed', e.message)
+    // loginFailedTime++
+    // console.log('failed', e.message)
     await new Promise(resolve =>
       setTimeout(() => resolve(reLogin(targetPage)), 1000)
     );
@@ -144,7 +145,7 @@ async function reLogin(targetPage) {
 
 async function start() {
   try {
-    updateTime = 0
+    // updateTime = 0
     startTime = Date.now()
     const tokenBrowser = await puppeteer.launch({
       args: [
@@ -176,13 +177,13 @@ async function start() {
 
 
 const isLatest = cookieIsLatest()
-console.log('puppeteer获取token, 当前时间：', new Date().toLocaleString())
+// console.log('puppeteer获取token, 当前时间：', new Date().toLocaleString())
 if(isLatest) {
-  console.log('cookie是最新的，最晚更新时间为', new Date(isLatest.time).toLocaleString())  
+  // console.log('cookie是最新的，最晚更新时间为', new Date(isLatest.time).toLocaleString())  
 } else {
   const time = cookiesList[cookiesList.length - 1]?.[0]?.time
   if(time) {
-    console.log("上次更新时间：", new Date(time).toLocaleString())
+    // console.log("上次更新时间：", new Date(time).toLocaleString())
   }
 }
 
