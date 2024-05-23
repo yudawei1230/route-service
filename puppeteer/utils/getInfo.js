@@ -29,6 +29,30 @@ async function reLogin(targetPage) {
   }
   
   try {
+    await targetPage.evaluate(() => {
+      sessionStorage.clear()
+      localStorage.clear()
+      if ('serviceWorker' in navigator) {  
+        navigator.serviceWorker.getRegistrations()  
+          .then(function(registrations) {  
+            for(let registration of registrations) {  
+              // 可以根据注册的范围或其他条件来选择要取消注册的 Service Worker  
+              registration.unregister()  
+                .then(function(successful) {  
+                  if (successful) {  
+                    
+                  }  
+                }).catch(function(err) {  
+                  
+                });  
+            }  
+          })  
+          .catch(function(err) {  
+           
+          });  
+      }
+      location.reload(true)
+    })
     await targetPage.goto('https://www.amazon.com/');
     await targetPage.evaluate(() => {
       location.reload(true)
@@ -338,10 +362,11 @@ async function loopUpdateAsinHrefList(targetPage) {
         await loopUpdateHref(targetPage, cacheKey);
       }
     }
+    await targetPage.goto('https://www.amazon.com/');
   } catch(e) {
     console.log(e)
   }
-    
+  
   setTimeout(() => loopUpdateAsinHrefList(targetPage), 60000);
 }
 exports.loopUpdateAsinHrefList = loopUpdateAsinHrefList;

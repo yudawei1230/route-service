@@ -10,6 +10,7 @@ let targetPage;
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
+        '--disable-service-workers',
         '--remote-debugging-address=0.0.0.0',
         '--remote-debugging-port=8822',
         // '--proxy-server=http://host.docker.internal:10809',
