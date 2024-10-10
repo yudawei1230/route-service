@@ -354,20 +354,11 @@ async function loopUpdateAsinHrefList(targetPage) {
       const dom = document.getElementById('glow-ingress-block');
       return dom && dom.innerText.includes('New York 10111‌');
     });
-    if (isRightLoc) {
-      for (const cacheKey in caches) {
-        while(!!taskMap.cridReq?.size) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-        }
-        await loopUpdateHref(targetPage, cacheKey);
-      }
-    }
     await targetPage.goto('https://www.amazon.com/');
+    return isRightLoc
   } catch(e) {
     console.log(e)
   }
-  
-  setTimeout(() => loopUpdateAsinHrefList(targetPage), 60000);
 }
 exports.loopUpdateAsinHrefList = loopUpdateAsinHrefList;
 exports.getAsyncCrid = getQueueHandler('cridReq', async function (targetPage, keyword, asin, brand) {

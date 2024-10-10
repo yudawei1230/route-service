@@ -55,8 +55,9 @@ async function getCrid({ res, urlParams, targetPage }) {
   }
 }
 
-function startServer(targetPage) {
+function startServer(browserList) {
   const server = http.createServer(async (req, res) => {
+    const targetPage = browserList[0]
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const path = req.url.split('?')[0];
     const method = req.method;
