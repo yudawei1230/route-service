@@ -57,7 +57,7 @@ async function getCrid({ res, urlParams, targetPage }) {
 
 function startServer(browserList) {
   const server = http.createServer(async (req, res) => {
-    const targetPage = browserList[0]
+    const targetPage = browserList[0].targetPage
     const urlParams = new URLSearchParams(req.url.split('?')[1]);
     const path = req.url.split('?')[0];
     const method = req.method;
@@ -76,44 +76,6 @@ function startServer(browserList) {
       res.end('ok');
     }
 
-    if(path === '/setCookies' && method === 'POST') {
-        let body = '';
-        req.on('data', chunk => {
-          body += chunk.toString();
-        });
-
-        req.on('end', async () => {
-          try {
-            const data = JSON.parse(body);
-            const list = data.list;
-            fs.writeFileSync(p.resolve(__dirname, '../cookies.txt'), JSON.stringify(list));
-            // syncReLogin(targetPage)
-            res.statusCode = 200;
-            res.end(
-              JSON.stringify({
-                status: 200,
-              })
-            );
-          } catch(e) {
-            console.log(e.message)
-            JSON.stringify({
-              status: 500,
-              message: e.message
-            });
-          }
-        });
-
-        return 
-    }
-
-    if(path === '/getCookies' && method === 'GET') {
-      const cookies = await loadCookies()
-      res.statusCode = 200;
-      res.end(
-        JSON.stringify(cookies)
-      );
-      return 
-    }
 
     res.statusCode = 404;
     res.end();

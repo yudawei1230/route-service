@@ -139,16 +139,16 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
     }
     const noTotalPage = totalPage === 0
     totalPage = totalPage || page
-    const src = `https://www.amazon.com/s?k=${keyword}${brandStr}&page=${page}&crid=${crid}qid=${(
+    const src = `https://www.amazon.com/s?k=${keyword}&page=${page}&crid=${crid}qid=${(
       Date.now() / 1000
     ).toFixed(0)}&sprefix=${sprefix}&ref=sr_pg_${page}`;
-    await targetPage.evaluate((src) => {location.href = src}, src).catch(() => {})
+    await targetPage.goto(src)
     await new Promise(resolve => setTimeout(resolve, 1000))
     // await targetPage.goto(src);
     const info = await targetPage.evaluate(({ page, asin }) => {
       const doc = document.body;
       var allPage;
-      var dom = doc && doc.querySelectorAll(`div[data-asin=${asin}] a[href]`);
+      var dom = doc && doc.querySelectorAll(`div[data-asin] a[href]`);
       if (page === 1 && doc) {
         allPage = [
           ...doc.querySelectorAll(
@@ -159,7 +159,7 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
           .find(v => v);
       }
       if (dom && dom.length) {
-        let hrefDom = [...dom].find(v => v.href.includes(`/${asin}/`) || v.href.includes('/sspa/click?'));
+        let hrefDom = [...dom].find(v => v.href && decodeURIComponent(v.href).includes('dib='));
         let href 
         if(hrefDom) {
           const url = hrefDom.href
@@ -181,7 +181,7 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
     if(info.allPage) {
       totalPage = info.allPage;
     }
-    
+
     if (info && info.href) {
       if(!brandStr) lastGetHrefPage[cacheKey] = page
       return info.href;
@@ -194,7 +194,7 @@ async function queryHref(targetPage, { asin, keyword , sprefix, crid, brand, isF
     }
     else if(brand && !lastTry){
       if(brandStr !== ` ${brand || ''}`) {
-        brandStr = ` ${brand || ''}`
+        // brandStr = ` ${brand || ''}`
         const href = await searchHref(1, 0, true)
         if(href) return href
       }
@@ -354,7 +354,6 @@ async function loopUpdateAsinHrefList(targetPage) {
       const dom = document.getElementById('glow-ingress-block');
       return dom && dom.innerText.includes('New York 10111‌');
     });
-    await targetPage.goto('https://www.amazon.com/');
     return isRightLoc
   } catch(e) {
     console.log(e)
@@ -366,9 +365,7 @@ exports.getAsyncCrid = getQueueHandler('cridReq', async function (targetPage, ke
 
   const data = await getCrid(targetPage, keyword, asin, brand)
   if(!data) return
-  if (data.cid) {
-    data.href = hrefCache[cacheKey];
-  }
+
   if (data.cid && (!data.href)) {
     data.href =
       hrefCache[cacheKey] ||

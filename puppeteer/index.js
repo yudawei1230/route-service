@@ -1,81 +1,139 @@
+const http = require('http');
+const { fork } = require('child_process');
 
-const puppeteer = require('puppeteer');
-const startServer = require('./utils/server');
-const { loopUpdateAsinHrefList } = require('./utils/getInfo');
-let targetPage;
-const browserList = []
+const browsers = {}
+const eventMap = {}
+const list = []
 
-async function createBrowser(port) {
-  const browser = await puppeteer.launch({
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-service-workers',
-      '--remote-debugging-address=0.0.0.0',
-      '--remote-debugging-port=' + port,
-      // '--proxy-server=http://host.docker.internal:10809',
-    ],
-  });
-  targetPage = await browser.newPage();
-  await targetPage.goto('https://www.amazon.com/')
-  const launched = await loopUpdateAsinHrefList(targetPage)
-  return launched ? targetPage : null
-}
 
-const browserMap = {
-  8811: null,
-  8822: null
-}
 
-async function removeBrowser(browser) {
-  Object.keys(browserMap).forEach(port => {
-    if(browserMap[port] === browser) {
-      browserMap[port] = null
+let randomIndex = 1
+function createBrowser(port) {
+  if(browsers[port]) {
+    browsers[port].disconnect()
+    browsers[port].kill('SIGTERM')
+    const i = list.findIndex(v => v === browsers[port])
+    if(i > -1) {
+      list.splice(i, 1)
     }
-  })
-  const index = browserList.findIndex(v => v === browser)
-  browserList.splice(index, 1)
-  await browser.close()
-}
-
-async function getBrowser() {
-  const list = (await Promise.all(Object.keys(browserMap).map(async port => {
-    if(browserMap[port]) return browserMap[port]
-    const browser = await createBrowser(port)
-    if(browser) {
-      browserMap[port] = browser
-      return browser
-    }
-  }))).filter(Boolean)
-  if(list?.length) return getBrowser()
-
-  return list
-}
-
-(async () => {
-  try {
-    const browsers = await getBrowser()
-    browserList.push(...browsers)
-
-    async function loopBrowser() {
-      const restBrowset = browserList.slice(1).filter(Boolean)?.[0]
-      const currentBrowser = browserList[0]
-      try {
-        if(!restBrowset) {
-          const browsers = await getBrowser()
-          browserList.length = 0
-          browserList.push(...browsers)
-        } else {
-          await removeBrowser(currentBrowser)
-        }
-      } catch(e) {}
-      setTimeout(loopBrowser, restBrowset ? 60 * 1000 : 1000)
-    }
-    setTimeout(loopBrowser, 60 * 1000)
-
-    startServer(browserList);
-  } catch (e) {
-    console.log(e)
   }
-})();
+  let b = fork('./child.js', [], { env: {
+    ...process.env,
+    browser_port: port
+  }});
+  b.BROWSER_PORT = port
+  b.BROWSER_TIME = new Date().toLocaleString()
+  b.on('exit', () => {
 
+  })
+  eventMap[port] = 0
+  browsers[port] = b
+  startBrowser(port)
+  return b
+}
+
+createBrowser(8811)
+createBrowser(8822)
+
+
+async function send(child, data) {
+  const id = Math.random().toString(36).slice(2) + randomIndex++
+  eventMap[child.BROWSER_PORT]++
+  return new Promise((resolve, reject) => {
+    setTimeout(() => reject, 60000)
+    child.send(JSON.stringify({ ...data, id }))
+    function handler(res) {
+      if(!res.includes(id)) return 
+      try {
+        const data = JSON.parse(res)
+        if(data.type === 'error') return reject()
+      } catch(e) {}
+      child.removeListener('message', handler)
+      resolve(res)
+    }
+
+    child.on('message', handler)
+  }).finally(() => {
+    eventMap[child.BROWSER_PORT]--
+  })
+}
+
+
+async function startBrowser(port) {
+  const browser = browsers[port]
+  await send(browser, { type: 'start' }).catch(e => {
+    createBrowser(browser.BROWSER_PORT)
+  })
+  if(!list.includes(browser)) {
+    list.push(browser)
+  }
+  const timeout = setInterval(() => {
+    if(!list.includes(browser) && eventMap[browser.BROWSER_PORT] === 0) {
+      clearInterval(timeout)
+      createBrowser(browser.BROWSER_PORT)
+    }
+  }, 5000)
+}
+
+(async function() {
+  function startServer() {
+    const server = http.createServer(async (req, res) => {
+      const urlParams = new URLSearchParams(req.url.split('?')[1]);
+      const path = req.url.split('?')[0];
+      const method = req.method;
+      const keyword = urlParams.get('keyword');
+      const asin = urlParams.get('asin');
+      const brand = urlParams.get('brand');
+      
+      if (path === '/getCrid' && method === 'GET' && list[0]) {
+        res.setHeader('Content-Type', 'application/json');
+        res.statusCode = 200;
+        const browser = list[0]
+        const port = browser.BROWSER_PORT
+        const time = browser.BROWSER_TIME
+        const dataStr = await send(list[0], { keyword, asin, brand })
+        try {
+          const data = JSON.parse(dataStr)
+          res.end(JSON.stringify({ ...data.res, id: data.id, port, time }))
+        } catch(e) {
+          res.end(dataStr)
+        }
+        
+        return 
+      }
+  
+      res.statusCode = 404;
+      res.end();
+    });
+  
+    server.listen(8833, () => {
+      console.log('Server is running on port 8833');
+      // updateRankTask(targetPage, true);
+    });
+  };
+
+  startServer()
+
+  setTimeout(() => {
+    setInterval(() => {
+      if(!list.length) {
+        process.exit(0)
+      }
+    }, 5000)
+  }, 60000)
+
+
+
+  setInterval(() => {
+    if(list.length > 1 && list[1] && list[1].BROWSER_PORT) {
+      const port = list[1].BROWSER_PORT
+      send(list[1], { keyword: 'cars', asin: '111', brand: 'lego' })
+      .then(() => {
+        list.shift()
+      })
+      .catch(() => {
+        createBrowser(port)
+      })
+    }
+  }, 60000)
+})()

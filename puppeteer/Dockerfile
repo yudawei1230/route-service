@@ -6,7 +6,7 @@
 #docker save -o browser.tar browser
 #docker run -d  -v $(pwd):/app  --network host --name browser browser && docker logs -f browser
 
-#docker build -t browser . && docker run -d  --restart always  -v $(pwd):/app  --name browser -p 8822:8822 -p 8833:8833 browser && docker logs -f browser
+#docker build -t browser . && docker run -d --init --restart always -m 1.5g --name browser -p 8811:8811 -p 8822:8822 -p 8833:8833 browser && docker logs -f browser
 
 #docker run -d  --rm --name browser -p 8822:8822 -p 8833:8833 browser && docker logs -f browser
 
