@@ -50,9 +50,18 @@ export class AppDemoGoodsController extends BaseController {
       where: { id: ctx.query.id },
     });
     if (!result || !result.id) return;
-    result.redirectUrl = ctx.query.url;
     if (ctx.query.rank) {
-      result.rank = ctx.query.rank;
+      let rank = []
+      if(result.rank) {
+        try {
+          const rankList = JSON.parse(result.rank)
+          rank.push(...rankList)
+          rank.length = 200
+          rank = rank.filter(Boolean)
+        } catch(e) {}
+        rank.push({ rank: ctx.query.rank, time: Date.now()})
+      }
+      result.rank = JSON.stringify(rank);
     }
     this.shortLinkManageEntity.update(result.id, result);
     return this.ok();

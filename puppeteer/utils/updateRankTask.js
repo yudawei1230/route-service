@@ -1,5 +1,5 @@
 const http = require('http');
-const getInfo = require('./getInfo');
+const { getCrid } = require('./getInfo');
 const fs = require('fs');
 const asinList = [];
 const { getQueueHandler } = require('./queue');
@@ -8,38 +8,42 @@ exports.asinList = asinList;
 
 function loadAsin() {
   const options = {
-    hostname: '127.0.0.1',
+    hostname: 'ffeerc.com',
     port: 8001,
     path: '/getLinks',
     method: 'GET',
   };
 
-  const req = http.request(options, res => {
-    let resStr = '';
-
-    res.on('data', chunk => {
-      resStr += chunk;
+  return new Promise((resolve, reject) => {
+    const req = http.request(options, res => {
+      let resStr = '';
+  
+      res.on('data', chunk => {
+        resStr += chunk;
+      });
+  
+      res.on('end', () => {
+        const list = JSON.parse(resStr).data || [];
+        asinList.length = 0;
+        asinList.push(...list);
+        resolve()
+      });
     });
-
-    res.on('end', () => {
-      const list = JSON.parse(resStr).data || [];
-      asinList.length = 0;
-      asinList.push(...list);
+  
+    req.on('error', error => {
+      console.error(error);
+      reject()
     });
-  });
-
-  req.on('error', error => {
-    console.error(error);
-  });
-
-  req.end();
+  
+    req.end();
+  })
 }
 let timeout;
 async function getRank({ targetPage, asin }) {
   const target = asinList.find(v => v.asin === asin);
   if (!target || !target.keyword) return;
   const keyword = target.keyword;
-  const info = await getInfo(targetPage, target.keyword);
+  const info = await getCrid(targetPage, keyword, asin);
 
   if (!info || !info.crid || !info.sprefix) return;
 
@@ -51,7 +55,7 @@ async function getRank({ targetPage, asin }) {
         [...document.querySelectorAll('iframe[data-info="1"]')].forEach(v =>
           document.body.removeChild(v)
         );
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 7; i++) {
           if (iframe && ![...document.body.childNodes].includes(iframe)) {
             return;
           }
@@ -101,7 +105,6 @@ async function getRank({ targetPage, asin }) {
               setTimeout(() => {
                 resolve();
               }, 10000);
-              console.log(iframe);
               document.body.appendChild(iframe);
             });
           } else {
@@ -218,7 +221,7 @@ function updateAsinList({ req, res, targetPage }) {
     const list = data.list;
     asinList.length = 0;
     asinList.push(...list);
-    const result = await pushGetRankQueue({
+    const result = await getRank({
       targetPage,
       asin: asinList[1].asin,
     });
@@ -233,22 +236,19 @@ function updateAsinList({ req, res, targetPage }) {
   });
 }
 
-async function goUpdateRank(targetPage, timeId) {
+async function goUpdateRank(targetPage) {
   for (const item of asinList) {
-    if (timeId !== timeout) return;
-    const result = await pushGetRankQueue({ targetPage, asin: item.asin });
+    const result = await getRank({ targetPage, asin: item.asin });
     if (result) {
       console.log(item, result.url, result.rank, result.i);
-    } else {
-      console.log(item, result);
-    }
+    } 
     if (result && result.url) {
       const url = /^https:\/\//.test(result.url)
         ? result.url
         : `https://www.amazon.com/${result.url}`;
-      const rank = result.rank ? `&rank=${result.rank}` : '';
+      const rank = result.rank ? '&rank=' + encodeURIComponent(result.rank) : '';
       const options = {
-        hostname: '127.0.0.1',
+        hostname: 'ffeerc.com',
         port: 8001,
         path: `/updateRank?id=${item.id}&url=${encodeURIComponent(url)}${rank}`,
         method: 'GET',
@@ -259,20 +259,13 @@ async function goUpdateRank(targetPage, timeId) {
   }
 }
 
-function updateRankTask(targetPage, immediate) {
-  loadAsin();
-  clearTimeout(timeout);
-  let currentTimeout;
-  console.log('updateRankTask', new Date().toLocaleString());
-  timeout = setTimeout(
-    async () => {
-      await goUpdateRank(targetPage, currentTimeout);
-      if (currentTimeout !== timeout) return;
-      updateRankTask(targetPage);
-    },
-    immediate ? 60 * 1000 : 60 * 60 * 1000
-  );
-  currentTimeout = timeout;
+async function updateRankTask(targetPage) {
+  await loadAsin();
+  console.log('读取asin')
+  await goUpdateRank(targetPage);
+  setTimeout(() => {
+    process.exit()
+  }, 60000)
 }
 
 exports.updateRankTask = updateRankTask;

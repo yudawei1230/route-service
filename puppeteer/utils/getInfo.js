@@ -225,6 +225,7 @@ async function getInfo(targetPage, keyword, asin, brand) {
     refTag: '',
     href: '',
   };
+
   if (!targetPage)
     // 获取当前页面的URL
     return;
@@ -240,19 +241,19 @@ async function getInfo(targetPage, keyword, asin, brand) {
   if (!currentUrl.includes('https://www.amazon.com')) return;
   await targetPage.waitForSelector('input[name=field-keywords]');
   
+  let sprefix = null;
   const responseHandler = async response => {
     const url = response.url();
     const status = response.status();
-
+    sprefix = targetPage.evaluate(() => {
+      const sprefix = document.getElementById('issprefix');
+      return sprefix ? sprefix.value : '';
+    });
     if (
       url.match(/\/suggestions\?/) &&
       url.includes('prefix=' + encodeURIComponent(keyword)) &&
       status === 200
     ) {
-      const sprefix = targetPage.evaluate(() => {
-        const sprefix = document.getElementById('issprefix');
-        return sprefix ? sprefix.value : '';
-      });
       try {
         const body = await response.text(); // 或使用 response.buffer() 方法
         const data = JSON.parse(body);
@@ -359,6 +360,7 @@ async function loopUpdateAsinHrefList(targetPage) {
     console.log(e)
   }
 }
+exports.getCrid = getInfo
 exports.loopUpdateAsinHrefList = loopUpdateAsinHrefList;
 exports.getAsyncCrid = getQueueHandler('cridReq', async function (targetPage, keyword, asin, brand) {
   const cacheKey = `${asin}_${decodeURIComponent(keyword)}`;

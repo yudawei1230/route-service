@@ -16,6 +16,9 @@ WORKDIR /app
                                                                                                  
 # 把当当前目录的模样   所有内容都拷贝到 app工作目录                                                                   
 COPY . /app                                                                                      
-                                                                                                 
+
+#docker stop rank && docker rm -v rank  && docker rmi rank
+#docker build -t rank . && docker run -d --init --restart always -m 0.8g -e browser_type="updateRankTask" -e browser_port="8844" --name rank -p 8844:8844 rank && docker logs -f rank
                                                                  
-CMD ["node", "./index.js"]
+# CMD ["node", "./index.js"]
+CMD ["node", "./child.js"]
