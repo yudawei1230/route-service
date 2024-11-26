@@ -32,9 +32,9 @@ function createBrowser(port) {
   return b
 }
 
-createBrowser(8811)
-createBrowser(8822)
+const ports = [8811, 8822]
 
+ports.forEach(p => createBrowser(p))
 
 async function send(child, data) {
   const id = Math.random().toString(36).slice(2) + randomIndex++
@@ -134,6 +134,9 @@ async function startBrowser(port) {
       .catch(() => {
         createBrowser(port)
       })
+    } else if(list.length === 1) {
+      const reCreatePort =  ports.find(p => p !== list[0].BROWSER_PORT)
+      createBrowser(reCreatePort)
     }
   }, 60000)
 })()
